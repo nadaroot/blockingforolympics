@@ -111,6 +111,8 @@ function createAllShellWindows() {
 
   if (isWindowed) {
     shellWindow.center();
+  } else {
+    shellWindow.setAlwaysOnTop(true, 'screen-saver');
   }
 
   shellWindow.loadFile(path.join(__dirname, 'shell', 'index.html'));
@@ -149,6 +151,7 @@ function createSecondaryWindows(displays, primaryId) {
       }
     });
 
+    secWin.setAlwaysOnTop(true, 'screen-saver');
     secWin.loadFile(path.join(__dirname, 'shell', 'secondary.html'));
     secondaryWindows.push(secWin);
   }
@@ -198,6 +201,10 @@ function openSafeBrowser(urlToOpen) {
   browserWindow.loadFile(path.join(__dirname, 'browser', 'browser.html'), {
     query: { initialUrl: targetUrl }
   });
+
+  if (!isWindowed) {
+    browserWindow.setAlwaysOnTop(isLocked, 'screen-saver');
+  }
 
   browserWindow.on('closed', () => {
     browserWindow = null;

@@ -68,6 +68,21 @@ namespace Loked.Native
         [DllImport("user32.dll")]
         private static extern IntPtr DispatchMessage([In] ref MSG lpMsg);
 
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern IntPtr FindWindow(string lpClassName, string lpWindowName);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern IntPtr FindWindowEx(IntPtr parentHandle, IntPtr childAfter, string className, string windowTitle);
+
+        [DllImport("user32.dll")]
+        private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+        [DllImport("user32.dll")]
+        private static extern bool EnableWindow(IntPtr hWnd, bool bEnable);
+
+        private const int SW_HIDE = 0;
+        private const int SW_SHOW = 5;
+
         [DllImport("user32.dll")]
         private static extern bool PostThreadMessage(uint idThread, uint Msg, IntPtr wParam, IntPtr lParam);
 
@@ -218,7 +233,41 @@ namespace Loked.Native
         private static void SetLockState(bool locked)
         {
             _isLocked = locked;
+            SetTaskbarVisibility(!locked);
             ApplyRegistryPolicies(locked);
+        }
+
+        private static void SetTaskbarVisibility(bool visible)
+        {
+            try
+            {
+                int cmd = visible ? SW_SHOW : SW_HIDE;
+
+                // 1. Primary taskbar
+                IntPtr taskbar = FindWindow("Shell_TrayWnd", null);
+                if (taskbar != IntPtr.Zero)
+                {
+                    ShowWindow(taskbar, cmd);
+                    EnableWindow(taskbar, visible);
+                }
+
+                // 2. Secondary monitor taskbars (Windows 10/11)
+                IntPtr secTaskbar = IntPtr.Zero;
+                while ((secTaskbar = FindWindowEx(IntPtr.Zero, secTaskbar, "Shell_SecondaryTrayWnd", null)) != IntPtr.Zero)
+                {
+                    ShowWindow(secTaskbar, cmd);
+                    EnableWindow(secTaskbar, visible);
+                }
+
+                // 3. Start button (legacy / standalone if any)
+                IntPtr startBtn = FindWindowEx(IntPtr.Zero, IntPtr.Zero, "Button", "Start");
+                if (startBtn != IntPtr.Zero)
+                {
+                    ShowWindow(startBtn, cmd);
+                    EnableWindow(startBtn, visible);
+                }
+            }
+            catch { }
         }
 
         private static void ApplyRegistryPolicies(bool apply)
