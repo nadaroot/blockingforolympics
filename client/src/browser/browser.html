@@ -23,14 +23,18 @@
     }
 
     .browser-toolbar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
       height: 44px;
-      background: #080808;
-      border-bottom: 1px solid #1c1c1c;
+      background: #0d0d0d;
+      border-bottom: 1px solid #262626;
       display: flex;
       align-items: center;
       padding: 0 14px;
       gap: 10px;
-      z-index: 100;
+      z-index: 9999999;
     }
 
     .nav-buttons {
@@ -72,8 +76,8 @@
     }
 
     .url-badge {
-      background: #0d0d0d;
-      border: 1px solid #1f1f1f;
+      background: #141414;
+      border: 1px solid #262626;
       padding: 4px 12px;
       border-radius: 9999px;
       display: flex;
@@ -96,13 +100,13 @@
     }
 
     .btn-desktop {
-      background: #171717;
-      border: 1px solid #262626;
-      color: #d4d4d4;
-      padding: 5px 12px;
+      background: #ededed;
+      border: 1px solid #ffffff;
+      color: #050505;
+      padding: 6px 14px;
       border-radius: 6px;
       font-size: 12px;
-      font-weight: 500;
+      font-weight: 600;
       display: flex;
       align-items: center;
       gap: 6px;
@@ -111,15 +115,18 @@
     }
 
     .btn-desktop:hover {
-      background: #222222;
-      color: #ffffff;
-      border-color: #383838;
+      background: #ffffff;
+      transform: translateY(-1px);
     }
 
     .webview-wrapper {
-      flex: 1;
-      position: relative;
+      position: absolute;
+      top: 44px;
+      left: 0;
+      right: 0;
+      bottom: 0;
       background: #fff;
+      z-index: 1;
     }
 
     webview {
@@ -283,6 +290,14 @@
     btnCloseBrowser.addEventListener('click', () => {
       if (window.lokedBrowser) {
         window.lokedBrowser.close();
+      }
+    });
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        if (window.lokedBrowser) {
+          window.lokedBrowser.close();
+        }
       }
     });
   </script>

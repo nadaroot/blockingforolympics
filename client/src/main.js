@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, desktopCapturer, dialog, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, desktopCapturer, dialog, screen, globalShortcut } = require('electron');
 const path = require('path');
 const { spawn, exec, execSync } = require('child_process');
 const fs = require('fs');
@@ -54,7 +54,10 @@ function resolveExePath(shortcut) {
 // Verify if a shortcut actually exists and can be run on this PC
 function isShortcutAvailable(shortcut) {
   if (!shortcut || !shortcut.enabled) return false;
-  if (shortcut.type === 'browser') return true;
+  // Websites and URL shortcuts are always available
+  if (shortcut.type === 'browser' || shortcut.type === 'url' || shortcut.url) return true;
+  // Custom shortcuts added by the admin are always preserved
+  if (shortcut.id && shortcut.id.startsWith('custom_')) return true;
 
   const cmd = (shortcut.cmd || '').toLowerCase();
   if (cmd === 'calc.exe' || cmd === 'notepad.exe') return true;
@@ -215,12 +218,27 @@ function openSafeBrowser(urlToOpen) {
   browserWindow.maximize();
   browserWindow.setAlwaysOnTop(true);
 
+  // Catch Escape globally across all inner frames/webviews
+  browserWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.key === 'Escape' && input.type === 'keyDown') {
+      if (browserWindow) {
+        browserWindow.close();
+        browserWindow = null;
+      }
+      if (shellWindow) {
+        shellWindow.show();
+        shellWindow.focus();
+      }
+    }
+  });
+
   browserWindow.loadFile(path.join(__dirname, 'browser', 'browser.html'), {
     query: { initialUrl: targetUrl }
   });
 
   browserWindow.on('closed', () => {
     browserWindow = null;
+    currentActiveAppName = 'LOKED Shell';
     if (shellWindow) {
       shellWindow.show();
       shellWindow.focus();
@@ -238,8 +256,10 @@ function setupIPC() {
     const sc = (currentConfig.shortcuts || []).find(s => s.id === shortcutId);
     if (!sc) return { success: false, message: 'Ярлык не найден' };
 
-    if (sc.type === 'browser') {
+    if (sc.type === 'browser' || sc.type === 'url' || sc.url) {
       openSafeBrowser(sc.url);
+      currentActiveAppName = sc.name;
+      network.sendHeartbeat({ activeApp: sc.name });
       return { success: true };
     }
 
@@ -255,8 +275,15 @@ function setupIPC() {
         });
       }
 
+      currentActiveAppName = sc.name;
+
       if (shellWindow) {
         shellWindow.setAlwaysOnTop(false);
+        try {
+          const handleBuf = shellWindow.getNativeWindowHandle();
+          const hwndVal = handleBuf.readBigInt64LE ? handleBuf.readBigInt64LE() : handleBuf.readInt32LE();
+          locker.sendToBottom(hwndVal);
+        } catch (_) {}
       }
       network.sendHeartbeat({ activeApp: sc.name });
       return { success: true };
@@ -309,11 +336,11 @@ function setupIPC() {
 }
 
 // Screen capture for Admin view
-async function captureDesktop() {
+async function captureDesktop(width = 1280, height = 720) {
   try {
     const sources = await desktopCapturer.getSources({
       types: ['screen'],
-      thumbnailSize: { width: 1280, height: 720 }
+      thumbnailSize: { width, height }
     });
     if (sources.length > 0) {
       return sources[0].thumbnail.toDataURL();
@@ -322,6 +349,27 @@ async function captureDesktop() {
     console.error('[Capture] Screen capture error:', err);
   }
   return null;
+}
+
+let streamIntervalMs = 1200;
+let isStreaming = true;
+let isCapturing = false;
+
+async function streamTick() {
+  if (!isStreaming) return;
+  if (!isCapturing) {
+    isCapturing = true;
+    try {
+      const frame = await captureDesktop(640, 360);
+      if (frame) {
+        network.sendScreenFrame(frame, currentActiveAppName);
+      }
+    } catch (_) {
+    } finally {
+      isCapturing = false;
+    }
+  }
+  setTimeout(streamTick, streamIntervalMs);
 }
 
 // Setup Network Handlers
@@ -396,9 +444,35 @@ function setupNetwork() {
   });
 
   network.on('command:take_screenshot', async () => {
-    const dataUrl = await captureDesktop();
+    const dataUrl = await captureDesktop(1280, 720);
     if (dataUrl) {
       network.sendScreenshot(dataUrl);
+    }
+  });
+
+  network.on('command:set_stream_rate', (data) => {
+    if (data && data.fps) {
+      streamIntervalMs = Math.max(200, Math.round(1000 / data.fps));
+    }
+  });
+
+  network.on('command:remote_input', (data) => {
+    if (!data) return;
+    try {
+      const primaryDisplay = screen.getPrimaryDisplay();
+      const { width, height } = primaryDisplay.bounds;
+      const targetX = Math.round((data.normX ?? 0) * width);
+      const targetY = Math.round((data.normY ?? 0) * height);
+
+      if (data.action === 'move') {
+        locker.mouseMove(targetX, targetY);
+      } else if (data.action === 'click') {
+        locker.mouseClick(data.button || 'left', targetX, targetY);
+      } else if (data.action === 'key' && data.vkCode) {
+        locker.keyPress(data.vkCode);
+      }
+    } catch (e) {
+      console.warn('[RemoteInput] Error executing input:', e);
     }
   });
 
@@ -453,6 +527,23 @@ app.whenReady().then(() => {
   // Setup networking & discovery
   setupNetwork();
   network.start();
+
+  // Start live screen frame streaming loop
+  setTimeout(streamTick, 1000);
+
+  // Global hotkey to bring LOKED desktop back to focus
+  try {
+    globalShortcut.register('CommandOrControl+Space', () => {
+      if (shellWindow) {
+        shellWindow.setAlwaysOnTop(true);
+        shellWindow.show();
+        shellWindow.focus();
+        if (!isLocked) {
+          shellWindow.setAlwaysOnTop(false);
+        }
+      }
+    });
+  } catch (_) {}
 
   setInterval(() => {
     network.sendHeartbeat({

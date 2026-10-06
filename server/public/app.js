@@ -11,9 +11,11 @@ let toastTimeout = null;
 // DOM Elements
 const clientsCountEl = document.getElementById('clientsCount');
 const mClientsCountEl = document.getElementById('mClientsCount');
+const wallCountEl = document.getElementById('wallCount');
 const violationsCountEl = document.getElementById('violationsCount');
 const statOnlineEl = document.getElementById('statOnline');
 const computersGrid = document.getElementById('computersGrid');
+const wallGrid = document.getElementById('wallGrid');
 const filterInput = document.getElementById('filterInput');
 const appToast = document.getElementById('appToast');
 
@@ -36,6 +38,8 @@ const shortcutsListContainer = document.getElementById('shortcutsListContainer')
 const btnAddCustomShortcut = document.getElementById('btnAddCustomShortcut');
 const newShortcutName = document.getElementById('newShortcutName');
 const newShortcutCmd = document.getElementById('newShortcutCmd');
+const scTypeApp = document.getElementById('scTypeApp');
+const scTypeBrowser = document.getElementById('scTypeBrowser');
 const btnSaveConfig = document.getElementById('btnSaveConfig');
 
 // Broadcast DOM
@@ -49,9 +53,13 @@ const btnClearLogs = document.getElementById('btnClearLogs');
 // Modal DOM
 const screenshotModal = document.getElementById('screenshotModal');
 const modalPcTitle = document.getElementById('modalPcTitle');
+const modalLivePill = document.getElementById('modalLivePill');
 const screenshotImage = document.getElementById('screenshotImage');
 const screenshotLoading = document.getElementById('screenshotLoading');
-const btnRefreshScreenshot = document.getElementById('btnRefreshScreenshot');
+const modalViewContainer = document.getElementById('modalViewContainer');
+const chkRemoteControl = document.getElementById('chkRemoteControl');
+const remoteBanner = document.getElementById('remoteBanner');
+const btnModalToggleLock = document.getElementById('btnModalToggleLock');
 const btnCloseModal = document.getElementById('btnCloseModal');
 const btnBottomCloseModal = document.getElementById('btnBottomCloseModal');
 const modalDim = document.getElementById('modalDim');
@@ -131,6 +139,9 @@ function renderComputersGrid() {
   violationsCountEl.textContent = violations;
   clientsCountEl.textContent = currentClients.length;
   if (mClientsCountEl) mClientsCountEl.textContent = currentClients.length;
+  if (wallCountEl) wallCountEl.textContent = currentClients.length;
+
+  renderWallGrid();
 
   if (filtered.length === 0) {
     computersGrid.innerHTML = `
@@ -192,6 +203,51 @@ function renderComputersGrid() {
   }).join('');
 }
 
+// Render Live Wall Grid (All Screens)
+function renderWallGrid() {
+  if (!wallGrid) return;
+  if (wallCountEl) wallCountEl.textContent = currentClients.length;
+
+  if (currentClients.length === 0) {
+    wallGrid.innerHTML = `
+      <div class="empty-state">
+        <p>Ожидание подключения компьютеров для трансляции экранов...</p>
+        <small>Запустите лаунчер на станциях в классе</small>
+      </div>
+    `;
+    return;
+  }
+
+  wallGrid.innerHTML = currentClients.map(client => {
+    const hasFrame = !!client.lastFrame;
+    const isViolation = client.status === 'violation';
+
+    return `
+      <div class="wall-card ${isViolation ? 'violation' : ''}" onclick="openScreenshotModal('${client.id}', '${escapeHtml(client.hostname)}')">
+        <div class="wall-screen-box">
+          ${hasFrame 
+            ? `<img class="wall-thumb" id="wall-img-${client.id}" src="${client.lastFrame}" alt="Экран">`
+            : `<div class="wall-thumb-placeholder" id="wall-placeholder-${client.id}">Ожидание видеопотока...</div>`
+          }
+          <div class="wall-live-tag">
+            <span class="dot"></span>
+            LIVE
+          </div>
+        </div>
+        <div class="wall-meta">
+          <div class="wall-meta-title">
+            <h4>${escapeHtml(client.hostname)}</h4>
+            <p>${client.ip}</p>
+          </div>
+          <div class="wall-app-pill" id="wall-app-${client.id}" title="${escapeHtml(client.activeApp)}">
+            ${escapeHtml(client.activeApp || 'LOKED')}
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
 // Render Shortcuts in Config Tab
 function renderShortcutsList() {
   if (!currentConfig.shortcuts) return;
@@ -201,9 +257,12 @@ function renderShortcutsList() {
       <div class="sc-row">
         <div>
           <div class="sc-name">${escapeHtml(sc.name)}</div>
-          <div class="sc-sub">${escapeHtml(sc.cmd || sc.url || 'Браузер')}</div>
+          <div class="sc-sub">${escapeHtml(sc.url || sc.cmd || (sc.type === 'browser' ? 'Веб-сайт' : 'Программа'))}</div>
         </div>
-        <input type="checkbox" ${sc.enabled ? 'checked' : ''} onchange="toggleShortcut(${index}, this.checked)">
+        <div class="sc-actions">
+          <input type="checkbox" ${sc.enabled ? 'checked' : ''} onchange="toggleShortcut(${index}, this.checked)">
+          <button class="btn-sc-del" onclick="deleteShortcut(${index})" title="Удалить ярлык">✕</button>
+        </div>
       </div>
     `;
   }).join('');
@@ -212,6 +271,15 @@ function renderShortcutsList() {
 window.toggleShortcut = function(index, checked) {
   if (currentConfig.shortcuts[index]) {
     currentConfig.shortcuts[index].enabled = checked;
+    saveCurrentConfig('Статус ярлыка изменен');
+  }
+};
+
+window.deleteShortcut = function(index) {
+  if (currentConfig.shortcuts && currentConfig.shortcuts[index]) {
+    const removed = currentConfig.shortcuts.splice(index, 1)[0];
+    renderShortcutsList();
+    saveCurrentConfig(`Ярлык "${removed.name}" удален`);
   }
 };
 
@@ -329,6 +397,41 @@ socket.on('alert:violation', (alertData) => {
   }
 });
 
+// Live Screen Stream Frame Handler
+socket.on('stream:frame', (data) => {
+  const pc = currentClients.find(c => c.id === data.clientId);
+  if (pc) {
+    pc.lastFrame = data.frame;
+    if (data.activeApp) pc.activeApp = data.activeApp;
+  }
+
+  // 1. Update miniature on Live Wall
+  const wallImg = document.getElementById(`wall-img-${data.clientId}`);
+  const wallPlaceholder = document.getElementById(`wall-placeholder-${data.clientId}`);
+  const wallApp = document.getElementById(`wall-app-${data.clientId}`);
+
+  if (wallImg) {
+    wallImg.src = data.frame;
+  } else if (wallPlaceholder && wallPlaceholder.parentElement) {
+    wallPlaceholder.parentElement.innerHTML = `
+      <img class="wall-thumb" id="wall-img-${data.clientId}" src="${data.frame}" alt="Экран">
+      <div class="wall-live-tag"><span class="dot"></span> LIVE</div>
+    `;
+  }
+
+  if (wallApp && data.activeApp) {
+    wallApp.textContent = data.activeApp;
+    wallApp.title = data.activeApp;
+  }
+
+  // 2. Update modal view if currently watching this PC
+  if (activeModalClientId === data.clientId) {
+    screenshotLoading.style.display = 'none';
+    screenshotImage.src = data.frame;
+    screenshotImage.style.display = 'block';
+  }
+});
+
 socket.on('admin:screenshot_result', (data) => {
   if (data.clientId === activeModalClientId && data.image) {
     screenshotLoading.style.display = 'none';
@@ -383,26 +486,46 @@ window.rebootClient = function(clientId) {
   }
 };
 
-// Screenshot Modal
+// Screenshot & Live Control Modal
 window.openScreenshotModal = function(clientId, hostname) {
   activeModalClientId = clientId;
   modalPcTitle.textContent = hostname;
-  screenshotImage.style.display = 'none';
-  screenshotLoading.style.display = 'block';
-  screenshotModal.classList.add('active');
-  socket.emit('admin:request_screenshot', { clientId });
-};
+  
+  if (chkRemoteControl) chkRemoteControl.checked = false;
+  if (remoteBanner) remoteBanner.style.display = 'none';
+  if (modalViewContainer) modalViewContainer.classList.remove('remote-active');
 
-btnRefreshScreenshot.addEventListener('click', () => {
-  if (activeModalClientId) {
+  const pc = currentClients.find(c => c.id === clientId);
+  if (pc && pc.lastFrame) {
+    screenshotImage.src = pc.lastFrame;
+    screenshotLoading.style.display = 'none';
+    screenshotImage.style.display = 'block';
+  } else {
     screenshotImage.style.display = 'none';
     screenshotLoading.style.display = 'block';
-    socket.emit('admin:request_screenshot', { clientId: activeModalClientId });
   }
-});
+
+  if (btnModalToggleLock && pc) {
+    btnModalToggleLock.textContent = pc.isLocked ? 'Разблок' : 'Блок';
+    btnModalToggleLock.onclick = () => {
+      toggleClientLock(pc.id, pc.isLocked);
+      btnModalToggleLock.textContent = !pc.isLocked ? 'Разблок' : 'Блок';
+    };
+  }
+
+  screenshotModal.classList.add('active');
+  // Request high FPS stream from client
+  socket.emit('admin:focus_client', { clientId });
+};
 
 function closeScreenshotModal() {
+  if (activeModalClientId) {
+    socket.emit('admin:unfocus_client', { clientId: activeModalClientId });
+  }
   screenshotModal.classList.remove('active');
+  if (chkRemoteControl) chkRemoteControl.checked = false;
+  if (remoteBanner) remoteBanner.style.display = 'none';
+  if (modalViewContainer) modalViewContainer.classList.remove('remote-active');
   activeModalClientId = null;
 }
 
@@ -410,8 +533,70 @@ btnCloseModal.addEventListener('click', closeScreenshotModal);
 if (btnBottomCloseModal) btnBottomCloseModal.addEventListener('click', closeScreenshotModal);
 if (modalDim) modalDim.addEventListener('click', closeScreenshotModal);
 
-// Config Save
-btnSaveConfig.addEventListener('click', () => {
+// Remote Control Toggle & Input Tracking
+if (chkRemoteControl) {
+  chkRemoteControl.addEventListener('change', () => {
+    if (chkRemoteControl.checked) {
+      if (remoteBanner) remoteBanner.style.display = 'flex';
+      if (modalViewContainer) modalViewContainer.classList.add('remote-active');
+      showToast('Режим удаленного управления включен');
+    } else {
+      if (remoteBanner) remoteBanner.style.display = 'none';
+      if (modalViewContainer) modalViewContainer.classList.remove('remote-active');
+      showToast('Режим удаленного управления выключен');
+    }
+  });
+}
+
+let lastRemoteMove = 0;
+if (modalViewContainer) {
+  modalViewContainer.addEventListener('mousemove', (e) => {
+    if (!chkRemoteControl || !chkRemoteControl.checked || !activeModalClientId) return;
+    const now = Date.now();
+    if (now - lastRemoteMove < 50) return; // ~20 fps
+    lastRemoteMove = now;
+
+    const rect = screenshotImage.getBoundingClientRect();
+    if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) return;
+
+    const normX = (e.clientX - rect.left) / rect.width;
+    const normY = (e.clientY - rect.top) / rect.height;
+
+    socket.emit('admin:remote_input', {
+      clientId: activeModalClientId,
+      action: 'move',
+      normX,
+      normY
+    });
+  });
+
+  modalViewContainer.addEventListener('mousedown', (e) => {
+    if (!chkRemoteControl || !chkRemoteControl.checked || !activeModalClientId) return;
+    e.preventDefault();
+
+    const rect = screenshotImage.getBoundingClientRect();
+    const normX = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const normY = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+    const btn = e.button === 2 ? 'right' : 'left';
+
+    socket.emit('admin:remote_input', {
+      clientId: activeModalClientId,
+      action: 'click',
+      button: btn,
+      normX,
+      normY
+    });
+  });
+
+  modalViewContainer.addEventListener('contextmenu', (e) => {
+    if (chkRemoteControl && chkRemoteControl.checked) {
+      e.preventDefault();
+    }
+  });
+}
+
+// Config Save & Auto Sync
+function saveCurrentConfig(toastMsg) {
   const domains = cfgAllowedDomains.value
     .split(',')
     .map(s => s.trim())
@@ -426,28 +611,53 @@ btnSaveConfig.addEventListener('click', () => {
   };
 
   socket.emit('admin:save_config', updatedConfig);
-  showToast('Настройки сохранены и применены на всех ПК');
+  if (toastMsg) showToast(toastMsg);
+}
+
+btnSaveConfig.addEventListener('click', () => {
+  saveCurrentConfig('Настройки сохранены и применены на всех ПК');
 });
+
+// Shortcut Type Toggle Listeners
+if (scTypeApp && scTypeBrowser) {
+  scTypeApp.addEventListener('change', () => {
+    newShortcutCmd.placeholder = 'Путь к файлу / команда (напр. C:\\Programs\\fp.exe)';
+    newShortcutName.placeholder = 'Название (напр. Free Pascal)';
+  });
+  scTypeBrowser.addEventListener('change', () => {
+    newShortcutCmd.placeholder = 'URL-адрес (напр. https://acmp.ru, https://codeforces.com)';
+    newShortcutName.placeholder = 'Название (напр. Яндекс Контест)';
+  });
+}
 
 btnAddCustomShortcut.addEventListener('click', () => {
   const name = newShortcutName.value.trim();
-  const cmd = newShortcutCmd.value.trim();
-  if (!name || !cmd) return;
+  const target = newShortcutCmd.value.trim();
+  if (!name || !target) {
+    showToast('Введите название и путь к файлу/URL');
+    return;
+  }
 
+  const isBrowser = scTypeBrowser && scTypeBrowser.checked;
   const newSc = {
     id: 'custom_' + Date.now(),
     name,
-    type: 'app',
-    icon: 'cube',
-    cmd,
-    paths: [cmd],
+    type: isBrowser ? 'browser' : 'app',
+    icon: isBrowser ? 'trophy' : 'code',
+    cmd: target,
+    url: target,
+    paths: [target],
     enabled: true
   };
+
+  if (!currentConfig.shortcuts) currentConfig.shortcuts = [];
   currentConfig.shortcuts.push(newSc);
+
   newShortcutName.value = '';
   newShortcutCmd.value = '';
   renderShortcutsList();
-  showToast(`Программа "${name}" добавлена`);
+
+  saveCurrentConfig(`Ярлык "${name}" добавлен и применен на всех ПК`);
 });
 
 // Broadcast

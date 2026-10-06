@@ -694,10 +694,242 @@ body {
   .cards-grid {
     grid-template-columns: 1fr;
   }
+  .wall-grid {
+    grid-template-columns: 1fr;
+  }
   .field-row {
     grid-template-columns: 1fr;
   }
   .main-body {
     padding: 12px;
   }
+}
+
+/* ==========================================================================
+   WALL GRID & LIVE SCREEN MONITORING
+   ========================================================================== */
+.wall-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+}
+
+.wall-card {
+  background: #0d0d0d;
+  border: 1px solid #1c1c1c;
+  border-radius: 10px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  flex-direction: column;
+}
+
+.wall-card:hover {
+  border-color: #383838;
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.6);
+}
+
+.wall-card.violation {
+  border-color: #ef4444;
+}
+
+.wall-screen-box {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #050505;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.wall-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.wall-thumb-placeholder {
+  font-size: 11px;
+  color: #525252;
+  text-align: center;
+}
+
+.wall-live-tag {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.wall-live-tag .dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background-color: #10b981;
+}
+
+.wall-meta {
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid #181818;
+}
+
+.wall-meta-title h4 {
+  font-size: 13px;
+  font-weight: 600;
+  color: #f5f5f5;
+  margin-bottom: 2px;
+}
+
+.wall-meta-title p {
+  font-size: 11px;
+  color: #737373;
+}
+
+.wall-app-pill {
+  font-size: 10px;
+  background: #141414;
+  border: 1px solid #242424;
+  padding: 3px 8px;
+  border-radius: 9999px;
+  color: #a3a3a3;
+  max-width: 130px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* LIVE PILL & REMOTE CONTROL MODAL EXTENSIONS */
+.modal-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.live-pill {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.28);
+  padding: 2px 6px;
+  border-radius: 9999px;
+}
+
+.remote-ctrl-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #a3a3a3;
+  cursor: pointer;
+  background: #121212;
+  border: 1px solid #242424;
+  padding: 4px 10px;
+  border-radius: 6px;
+  user-select: none;
+}
+
+.remote-ctrl-toggle:hover {
+  background: #171717;
+  color: #ededed;
+}
+
+.remote-ctrl-toggle input:checked + .remote-ctrl-text {
+  color: #f87171;
+  font-weight: 600;
+}
+
+.remote-banner {
+  background: rgba(220, 38, 38, 0.12);
+  border-bottom: 1px solid rgba(220, 38, 38, 0.3);
+  color: #fca5a5;
+  font-size: 11px;
+  padding: 7px 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pulse-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: #ef4444;
+  box-shadow: 0 0 8px #ef4444;
+  animation: pulse 1.2s infinite ease-in-out;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.85); }
+}
+
+.modal-view.remote-active {
+  cursor: crosshair !important;
+}
+
+.modal-view.remote-active img {
+  cursor: crosshair !important;
+}
+
+/* SHORTCUT SELECTOR */
+.shortcut-type-selector {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 10px;
+}
+
+.radio-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #a3a3a3;
+  cursor: pointer;
+}
+
+.radio-label input[type="radio"] {
+  accent-color: #ededed;
+}
+
+.sc-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.btn-sc-del {
+  background: transparent;
+  border: none;
+  color: #666666;
+  cursor: pointer;
+  padding: 2px 6px;
+  font-size: 14px;
+  line-height: 1;
+  border-radius: 4px;
+  transition: all 0.15s;
+}
+
+.btn-sc-del:hover {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
 }

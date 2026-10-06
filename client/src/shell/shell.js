@@ -7,6 +7,7 @@ const timerDigits = document.getElementById('timerDigits');
 const timerLabel = document.getElementById('timerLabel');
 const systemClock = document.getElementById('systemClock');
 const shortcutsGrid = document.getElementById('shortcutsGrid');
+const macosDock = document.getElementById('macosDock');
 
 const broadcastBanner = document.getElementById('broadcastBanner');
 const broadcastText = document.getElementById('broadcastText');
@@ -59,37 +60,117 @@ function formatTime(totalSeconds) {
   return [h, m, s].map(v => v.toString().padStart(2, '0')).join(':');
 }
 
-// Render Available Shortcuts
+// Render Available Shortcuts in Workspace Grid & macOS Dock
 function renderShortcuts(shortcuts) {
   if (!shortcuts || shortcuts.length === 0) {
-    shortcutsGrid.innerHTML = `
-      <div style="grid-column: 1 / -1; text-align: center; color: #525252; padding: 40px; font-size: 13px;">
-        Нет доступных программ на данной станции.
-      </div>
-    `;
+    if (shortcutsGrid) {
+      shortcutsGrid.innerHTML = `
+        <div style="grid-column: 1 / -1; text-align: center; color: #525252; padding: 40px; font-size: 13px;">
+          Нет доступных программ на данной станции.
+        </div>
+      `;
+    }
+    if (macosDock) {
+      macosDock.innerHTML = '';
+    }
     return;
   }
 
-  shortcutsGrid.innerHTML = shortcuts.map(s => {
-    const isContest = s.id === 'contest';
-    const featuredClass = isContest ? 'featured' : '';
-    const desc = isContest ? 'Тестирующая система' : 'Среда разработки';
+  // 1. Grid in center of workspace
+  if (shortcutsGrid) {
+    shortcutsGrid.innerHTML = shortcuts.map(s => {
+      const isContest = s.id === 'contest';
+      const featuredClass = isContest ? 'featured' : '';
+      const desc = isContest ? 'Тестирующая система' : (s.type === 'browser' || s.url ? 'Веб-ресурс' : 'Среда разработки');
 
-    return `
-      <div class="app-card ${featuredClass}" onclick="launchApp('${s.id}')">
-        <div class="app-icon">
-          ${getIcon(s.icon || (isContest ? 'trophy' : 'code'))}
+      return `
+        <div class="app-card ${featuredClass}" onclick="launchApp('${s.id}')">
+          <div class="app-icon">
+            ${getIcon(s.icon || (isContest ? 'trophy' : (s.type === 'browser' ? 'trophy' : 'code')))}
+          </div>
+          <div class="app-meta">
+            <div class="app-name">${escapeHtml(s.name)}</div>
+            <div class="app-desc">${desc}</div>
+          </div>
         </div>
-        <div class="app-meta">
-          <div class="app-name">${escapeHtml(s.name)}</div>
-          <div class="app-desc">${desc}</div>
+      `;
+    }).join('');
+  }
+
+  // 2. macOS Bottom Dock with genuine parabolic magnification
+  if (macosDock) {
+    macosDock.innerHTML = shortcuts.map(s => {
+      const isContest = s.id === 'contest';
+      const featuredClass = isContest ? 'featured' : '';
+      const iconSvg = getIcon(s.icon || (isContest ? 'trophy' : (s.type === 'browser' ? 'trophy' : 'code')));
+
+      return `
+        <div class="dock-item ${featuredClass}" data-id="${s.id}" onclick="handleDockClick(this, '${s.id}')">
+          <div class="dock-tooltip">${escapeHtml(s.name)}</div>
+          ${iconSvg}
+          <div class="dock-dot"></div>
         </div>
-      </div>
-    `;
-  }).join('');
+      `;
+    }).join('');
+  }
 }
 
+// macOS Dock Parabolic Magnification Physics
+if (macosDock) {
+  macosDock.addEventListener('mousemove', (e) => {
+    const items = macosDock.querySelectorAll('.dock-item');
+    if (!items.length) return;
+
+    const mouseX = e.clientX;
+    const maxDist = 130; // Radius of magnification influence
+    const maxScale = 1.55; // Peak scale factor
+
+    items.forEach(item => {
+      const rect = item.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const dist = Math.abs(mouseX - centerX);
+
+      if (dist < maxDist) {
+        // Smooth cosine bell curve
+        const factor = Math.cos((dist / maxDist) * (Math.PI / 2));
+        const scale = 1 + (maxScale - 1) * factor;
+        const translateY = -(scale - 1) * 26;
+        item.style.transform = `scale(${scale.toFixed(3)}) translateY(${translateY.toFixed(1)}px)`;
+      } else {
+        item.style.transform = 'scale(1) translateY(0px)';
+      }
+    });
+  });
+
+  macosDock.addEventListener('mouseleave', () => {
+    const items = macosDock.querySelectorAll('.dock-item');
+    items.forEach(item => {
+      item.style.transform = 'scale(1) translateY(0px)';
+    });
+  });
+}
+
+window.handleDockClick = function(elem, id) {
+  // macOS Click Bounce Animation
+  elem.classList.add('dock-bounce');
+  elem.classList.add('active');
+  setTimeout(() => {
+    elem.classList.remove('dock-bounce');
+  }, 650);
+
+  launchApp(id);
+};
+
 window.launchApp = async function(id) {
+  // Mark active dock item
+  if (macosDock) {
+    macosDock.querySelectorAll('.dock-item').forEach(it => {
+      if (it.getAttribute('data-id') === id) {
+        it.classList.add('active');
+      }
+    });
+  }
+
   const res = await ipcRenderer.invoke('launch-app', id);
   if (!res.success && res.message) {
     alert(res.message);

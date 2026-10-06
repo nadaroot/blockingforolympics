@@ -57,6 +57,36 @@ class LockerManager {
     }
   }
 
+  mouseMove(x, y) {
+    if (this.process && this.process.stdin.writable) {
+      this.process.stdin.write(`MOUSE:MOVE:${Math.round(x)}:${Math.round(y)}\n`);
+    }
+  }
+
+  mouseClick(button, x, y) {
+    if (this.process && this.process.stdin.writable) {
+      this.process.stdin.write(`MOUSE:CLICK:${button.toUpperCase()}:${Math.round(x)}:${Math.round(y)}\n`);
+    }
+  }
+
+  keyPress(vkCode) {
+    if (this.process && this.process.stdin.writable) {
+      this.process.stdin.write(`KEY:PRESS:${vkCode}\n`);
+    }
+  }
+
+  sendToBottom(hwnd) {
+    if (this.process && this.process.stdin.writable && hwnd) {
+      this.process.stdin.write(`WIN:BOTTOM:${hwnd.toString()}\n`);
+    }
+  }
+
+  bringToTop(hwnd) {
+    if (this.process && this.process.stdin.writable && hwnd) {
+      this.process.stdin.write(`WIN:TOP:${hwnd.toString()}\n`);
+    }
+  }
+
   stop() {
     if (this.process) {
       try {

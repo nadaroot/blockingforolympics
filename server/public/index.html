@@ -55,6 +55,9 @@
       <button class="tab-item active" data-tab="computers">
         Компьютеры (<span id="clientsCount">0</span>)
       </button>
+      <button class="tab-item" data-tab="wall">
+        Стена экранов (<span id="wallCount">0</span>)
+      </button>
       <button class="tab-item" data-tab="config">
         Настройки олимпиады
       </button>
@@ -80,6 +83,22 @@
           <div class="empty-state">
             <p>Ожидание подключения компьютеров учеников...</p>
             <small>Запустите лаунчер на станциях в классе</small>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB: Live Wall (Стена экранов всех ПК) -->
+      <section id="tab-wall" class="tab-pane">
+        <div class="back-bar">
+          <button class="btn btn-secondary btn-sm" onclick="switchTab('computers')">
+            ← Назад к компьютерам
+          </button>
+          <span class="back-bar-title">Стена экранов (Live стрим)</span>
+        </div>
+
+        <div class="wall-grid" id="wallGrid">
+          <div class="empty-state">
+            <p>Ожидание подключения компьютеров для трансляции экранов...</p>
           </div>
         </div>
       </section>
@@ -126,9 +145,19 @@
             <div class="shortcuts-group" id="shortcutsListContainer"></div>
 
             <div class="field-add">
-              <input type="text" id="newShortcutName" class="text-input" placeholder="Название (напр. Free Pascal)">
-              <input type="text" id="newShortcutCmd" class="text-input" placeholder="Команда/exe (напр. fp.exe)">
-              <button class="btn btn-secondary btn-full" id="btnAddCustomShortcut">+ Добавить программу</button>
+              <div class="shortcut-type-selector">
+                <label class="radio-label">
+                  <input type="radio" name="newScType" id="scTypeApp" value="app" checked>
+                  <span>Программа (.exe)</span>
+                </label>
+                <label class="radio-label">
+                  <input type="radio" name="newScType" id="scTypeBrowser" value="browser">
+                  <span>Веб-сайт (URL)</span>
+                </label>
+              </div>
+              <input type="text" id="newShortcutName" class="text-input" placeholder="Название (напр. Free Pascal или Яндекс Контест)">
+              <input type="text" id="newShortcutCmd" class="text-input" placeholder="Путь к файлу / команда (напр. C:\Programs\fp.exe)">
+              <button class="btn btn-secondary btn-full" id="btnAddCustomShortcut">+ Добавить ярлык</button>
             </div>
           </div>
         </div>
@@ -189,6 +218,10 @@
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></svg>
         <span>ПК (<b id="mClientsCount">0</b>)</span>
       </button>
+      <button class="m-tab" data-tab="wall" onclick="switchTab('wall')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>
+        <span>Экраны</span>
+      </button>
       <button class="m-tab" data-tab="config" onclick="switchTab('config')">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
         <span>Настройки</span>
@@ -204,20 +237,33 @@
     </nav>
   </div>
 
-  <!-- Screenshot Modal (Responsive & Mobile Easy Close) -->
+  <!-- Live Screen & Remote Control Modal -->
   <div class="modal" id="screenshotModal">
     <div class="modal-dim" id="modalDim"></div>
     <div class="modal-box">
       <div class="modal-bar">
-        <span id="modalPcTitle">Экран ПК</span>
+        <div class="modal-bar-left">
+          <span id="modalPcTitle">Экран ПК</span>
+          <span class="live-pill" id="modalLivePill">LIVE</span>
+        </div>
         <div class="modal-bar-right">
-          <button class="btn-sm btn-outline" id="btnRefreshScreenshot">Обновить</button>
+          <label class="remote-ctrl-toggle" title="Включить управление курсором и кликами">
+            <input type="checkbox" id="chkRemoteControl">
+            <span class="remote-ctrl-text">Управление ПК</span>
+          </label>
+          <button class="btn-sm btn-outline" id="btnModalToggleLock">Блок</button>
           <button class="modal-close" id="btnCloseModal">&times;</button>
         </div>
       </div>
-      <div class="modal-view">
-        <div id="screenshotLoading" class="view-loading">Получение снимка экрана...</div>
-        <img id="screenshotImage" class="view-img" style="display:none;" alt="Экран">
+
+      <div class="remote-banner" id="remoteBanner" style="display:none;">
+        <span class="pulse-dot"></span>
+        <span>Режим управления активен: движения мыши и клики передаются на экран ученика</span>
+      </div>
+
+      <div class="modal-view" id="modalViewContainer">
+        <div id="screenshotLoading" class="view-loading">Подключение к живому видеопотоку...</div>
+        <img id="screenshotImage" class="view-img" style="display:none;" alt="Экран" draggable="false">
       </div>
       <div class="modal-bottom-bar">
         <button class="btn btn-secondary btn-full" id="btnBottomCloseModal">✕ Закрыть просмотр</button>

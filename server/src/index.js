@@ -188,12 +188,46 @@ io.on('connection', (socket) => {
     }
   });
 
-  // 5. Screenshot response from Client
+  // 5. Live Screen Frame from Client
+  socket.on('client:screen_frame', (data) => {
+    const client = clients.get(socket.id);
+    if (client) {
+      client.lastFrame = data.frame;
+      if (data.activeApp) client.activeApp = data.activeApp;
+      io.to('admins').emit('stream:frame', {
+        clientId: socket.id,
+        frame: data.frame,
+        activeApp: client.activeApp
+      });
+    }
+  });
+
+  // 6. Screenshot response (legacy fallback)
   socket.on('client:screenshot_data', (data) => {
     io.to('admins').emit('admin:screenshot_result', {
       clientId: socket.id,
-      image: data.image // base64 data url
+      image: data.image
     });
+  });
+
+  // 7. Remote Control Input forwarding (Mouse/Keyboard from Admin)
+  socket.on('admin:remote_input', (data) => {
+    if (data && data.clientId) {
+      io.to(data.clientId).emit('command:remote_input', data);
+    }
+  });
+
+  // 8. Stream rate control (high FPS for focused screen)
+  socket.on('admin:focus_client', (data) => {
+    if (data && data.clientId) {
+      io.to(data.clientId).emit('command:set_stream_rate', { fps: 4 });
+    }
+  });
+
+  socket.on('admin:unfocus_client', (data) => {
+    if (data && data.clientId) {
+      io.to(data.clientId).emit('command:set_stream_rate', { fps: 1 });
+    }
   });
 
   // 6. Admin Actions

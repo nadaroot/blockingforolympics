@@ -115,7 +115,9 @@ class ClientNetwork {
       'command:take_screenshot',
       'command:message',
       'command:reboot',
-      'command:shutdown'
+      'command:shutdown',
+      'command:remote_input',
+      'command:set_stream_rate'
     ];
 
     for (const evt of events) {
@@ -137,6 +139,10 @@ class ClientNetwork {
 
   sendScreenshot(imageDataUrl) {
     this.emit('client:screenshot_data', { image: imageDataUrl });
+  }
+
+  sendScreenFrame(imageDataUrl, activeApp) {
+    this.emit('client:screen_frame', { frame: imageDataUrl, activeApp });
   }
 }
 

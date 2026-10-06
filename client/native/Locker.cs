@@ -86,6 +86,31 @@ namespace Loked.Native
         [DllImport("user32.dll")]
         private static extern bool PostThreadMessage(uint idThread, uint Msg, IntPtr wParam, IntPtr lParam);
 
+        [DllImport("user32.dll")]
+        private static extern bool SetCursorPos(int X, int Y);
+
+        [DllImport("user32.dll")]
+        private static extern void mouse_event(uint dwFlags, uint dx, uint dy, uint dwData, int dwExtraInfo);
+
+        [DllImport("user32.dll")]
+        private static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, int dwExtraInfo);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+
+        private static readonly IntPtr HWND_BOTTOM = new IntPtr(1);
+        private static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
+        private static readonly IntPtr HWND_NOTOPMOST = new IntPtr(-2);
+        private const uint SWP_NOSIZE = 0x0001;
+        private const uint SWP_NOMOVE = 0x0002;
+        private const uint SWP_NOACTIVATE = 0x0010;
+
+        private const uint MOUSEEVENTF_LEFTDOWN = 0x0002;
+        private const uint MOUSEEVENTF_LEFTUP = 0x0004;
+        private const uint MOUSEEVENTF_RIGHTDOWN = 0x0008;
+        private const uint MOUSEEVENTF_RIGHTUP = 0x0010;
+        private const uint KEYEVENTF_KEYUP = 0x0002;
+
         private const uint WM_QUIT = 0x0012;
 
         [StructLayout(LayoutKind.Sequential)]
@@ -147,6 +172,59 @@ namespace Loked.Native
                     {
                         SetLockState(false);
                         Console.WriteLine("LOKED_LOCKER:UNLOCKED");
+                    }
+                    else if (line.StartsWith("MOUSE:MOVE:"))
+                    {
+                        string[] parts = line.Split(':');
+                        if (parts.Length >= 4)
+                        {
+                            int mx = int.Parse(parts[2]);
+                            int my = int.Parse(parts[3]);
+                            SetCursorPos(mx, my);
+                        }
+                    }
+                    else if (line.StartsWith("MOUSE:CLICK:"))
+                    {
+                        string[] parts = line.Split(':');
+                        if (parts.Length >= 5)
+                        {
+                            string btn = parts[2];
+                            int mx = int.Parse(parts[3]);
+                            int my = int.Parse(parts[4]);
+                            SetCursorPos(mx, my);
+                            if (btn == "RIGHT")
+                                mouse_event(MOUSEEVENTF_RIGHTDOWN | MOUSEEVENTF_RIGHTUP, 0, 0, 0, 0);
+                            else
+                                mouse_event(MOUSEEVENTF_LEFTDOWN | MOUSEEVENTF_LEFTUP, 0, 0, 0, 0);
+                        }
+                    }
+                    else if (line.StartsWith("KEY:PRESS:"))
+                    {
+                        string[] parts = line.Split(':');
+                        if (parts.Length >= 3)
+                        {
+                            byte vk = byte.Parse(parts[2]);
+                            keybd_event(vk, 0, 0, 0);
+                            keybd_event(vk, 0, KEYEVENTF_KEYUP, 0);
+                        }
+                    }
+                    else if (line.StartsWith("WIN:BOTTOM:"))
+                    {
+                        string[] parts = line.Split(':');
+                        if (parts.Length >= 3)
+                        {
+                            long hVal = long.Parse(parts[2]);
+                            SetWindowPos((IntPtr)hVal, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE);
+                        }
+                    }
+                    else if (line.StartsWith("WIN:TOP:"))
+                    {
+                        string[] parts = line.Split(':');
+                        if (parts.Length >= 3)
+                        {
+                            long hVal = long.Parse(parts[2]);
+                            SetWindowPos((IntPtr)hVal, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE);
+                        }
                     }
                     else if (line == "STATUS")
                     {
