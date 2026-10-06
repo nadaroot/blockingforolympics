@@ -1017,3 +1017,25 @@ body {
   margin-top: 8px;
   text-align: center;
 }
+
+.btn-solid.danger {
+  background: #dc2626;
+  color: #ffffff;
+}
+
+.btn-solid.danger:hover {
+  background: #ef4444;
+}
+
+.desktop-app-img {
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+  border-radius: 8px;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.45));
+  pointer-events: none;
+}
+
+.docker.empty {
+  display: none !important;
+}

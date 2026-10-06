@@ -276,6 +276,31 @@
     </div>
   </div>
 
+  <!-- Universal In-App Prompt Dialog -->
+  <div class="modal-overlay" id="promptModal" style="display:none;">
+    <div class="modal-card">
+      <div class="modal-title" id="promptModalTitle">Ввод данных</div>
+      <p class="modal-sub" id="promptModalSub">Введите значение:</p>
+      <input type="text" id="promptModalInput" class="modal-input" placeholder="" autocomplete="off" spellcheck="false">
+      <div class="modal-actions">
+        <button class="btn-text" id="btnCancelPrompt">Отмена</button>
+        <button class="btn-solid" id="btnConfirmPrompt">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Universal In-App Confirm Dialog -->
+  <div class="modal-overlay" id="confirmModal" style="display:none;">
+    <div class="modal-card">
+      <div class="modal-title" id="confirmModalTitle">Подтверждение</div>
+      <p class="modal-sub" id="confirmModalSub">Вы уверены?</p>
+      <div class="modal-actions">
+        <button class="btn-text" id="btnCancelConfirm">Отмена</button>
+        <button class="btn-solid danger" id="btnOkConfirm">Продолжить</button>
+      </div>
+    </div>
+  </div>
+
   <script src="shell.js"></script>
 </body>
 </html>

@@ -4,9 +4,10 @@ const { ipcRenderer } = require('electron');
 let currentConfig = { contestUrl: 'https://contest.yandex.ru', shortcuts: [] };
 let activeTopZ = 200;
 let openWindows = new Set();
+let runningExternalApps = new Map(); // id -> shortcut object
 let desktopFiles = [];
 let currentEditorFile = 'solution.py';
-let selectedItemName = null;
+let selectedItemId = null;
 
 // DOM Elements
 const systemClock = document.getElementById('systemClock');
@@ -86,83 +87,173 @@ function formatTime(totalSeconds) {
 
 // Inline SVG Icon Helpers
 function makeSvgDataUri(svgContent) {
-  return 'data:image/svg+xml;utf8,' + encodeURIComponent(svgContent);
+  return 'data:image/svg+xml;utf8,' + encodeURIComponent(svgContent.trim());
 }
 
-const DOCK_ICONS = {
+// Canonical / Standard Base Icons
+const BASE_ICONS = {
+  // Official Yandex Red Badge
   contest: makeSvgDataUri(`
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
-      <defs>
-        <linearGradient id="g1" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#f59e0b"/>
-          <stop offset="100%" stop-color="#b45309"/>
-        </linearGradient>
-      </defs>
-      <rect width="64" height="64" rx="14" fill="url(#g1)"/>
-      <path d="M20 20 h24 v10 a12 12 0 0 1 -24 0 Z" fill="#ffffff" opacity="0.95"/>
-      <path d="M16 22 h4 v6 a6 6 0 0 1 -4 -6 Z" fill="#ffffff" opacity="0.7"/>
-      <path d="M48 22 h-4 v6 a6 6 0 0 0 4 -6 Z" fill="#ffffff" opacity="0.7"/>
-      <rect x="29" y="38" width="6" height="10" fill="#ffffff"/>
-      <rect x="22" y="48" width="20" height="4" rx="2" fill="#ffffff"/>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="64" height="64">
+      <circle cx="64" cy="64" r="58" fill="#fc3f1d"/>
+      <circle cx="64" cy="64" r="48" fill="#ffffff"/>
+      <path d="M72 34 h-16 c-8 0 -14 6 -14 14 c0 6 3 11 8 13 l-10 23 h11 l9 -21 h4 v21 h10 v-50 z M64 57 h-8 c-4 0 -6 -2 -6 -6 c0 -4 2 -6 6 -6 h8 v12 z" fill="#fc3f1d"/>
     </svg>
   `),
+
+  // Official Python Logo (Interlocking Blue & Yellow Serpents)
+  python: makeSvgDataUri(`
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="64" height="64">
+      <path d="M63.5 12 c-22.4 0 -21 9.7 -21 9.7 l.02 10.1 h21.4 v3 h-30 c-13.8 0 -24.2 8.3 -24.2 24.1 c0 15.8 8.8 23.3 20.3 23.3 h7.4 v-10.3 c0 -11.7 10.1 -11.7 10.1 -11.7 h20.9 c10.3 0 10.1 -9.9 10.1 -9.9 v-19.5 c0 -9.6 -9.2 -18.8 -25 -18.8 z M51 21.6 a4 4 0 1 1 0 8 a4 4 0 0 1 0 -8 z" fill="#387eb8"/>
+      <path d="M64.5 116 c22.4 0 21 -9.7 21 -9.7 l-.02 -10.1 h-21.4 v-3 h30 c13.8 0 24.2 -8.3 24.2 -24.1 c0 -15.8 -8.8 -23.3 -20.3 -23.3 h-7.4 v10.3 c0 11.7 -10.1 11.7 -10.1 11.7 h-20.9 c-10.3 0 -10.1 9.9 -10.1 9.9 v19.5 c0 9.6 9.2 18.8 25 18.8 z M77 106.4 a4 4 0 1 1 0 -8 a4 4 0 0 1 0 8 z" fill="#ffe052"/>
+    </svg>
+  `),
+
+  // Official Microsoft Visual Studio Code Origami Ribbon
+  vscode: makeSvgDataUri(`
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="64" height="64">
+      <path d="M96.7 122.9 a8 8 0 0 0 5.4 -1.6 l21.3 -16.4 a8 8 0 0 0 3 -6.3 V29.4 a8 8 0 0 0 -3 -6.3 L102.1 6.7 a8 8 0 0 0 -8.6 -.2 l-58 37.8 -21 -16 a5.5 5.5 0 0 0 -7.8 1.4 l-4.7 6.3 a5.5 5.5 0 0 0 1.4 7.8 L22.8 58 2 74 a5.5 5.5 0 0 0 -1.4 7.8 l4.7 6.3 a5.5 5.5 0 0 0 7.8 1.4 l22.4 -17 58.1 48.7 a8 8 0 0 0 3.1 1.7 z" fill="#0065a9"/>
+      <path d="M93.5 6.5 l-58 37.8 22.8 19.7 40.8 -31.5 V11 a5 5 0 0 0 -5.6 -4.5 z" fill="#007acc"/>
+      <path d="M93.5 121.5 a5 5 0 0 0 5.6 -4.5 V95.5 L58.3 64 l-22.8 19.7 58 37.8 z" fill="#1f9cf0"/>
+      <path d="M123.4 23.1 L99.1 41.5 58.3 64 l40.8 22.5 24.3 18.4 a5 5 0 0 0 3 -4.5 V27.6 a5 5 0 0 0 -3 -4.5 z" fill="#0065a9"/>
+    </svg>
+  `),
+
+  // Official JetBrains PyCharm Logo
+  pycharm: makeSvgDataUri(`
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="64" height="64">
+      <rect width="128" height="128" rx="26" fill="#212121"/>
+      <path d="M14 16 h50 v50 h-50 Z" fill="#21D789"/>
+      <path d="M64 64 h50 v50 h-50 Z" fill="#FC801D"/>
+      <rect x="18" y="18" width="92" height="92" rx="14" fill="#181818"/>
+      <path d="M30 94 h26 v6 h-26 Z" fill="#ffffff"/>
+      <text x="26" y="66" font-family="'JetBrains Mono', Consolas, monospace" font-weight="900" font-size="34" fill="#ffffff">PC</text>
+    </svg>
+  `),
+
+  // Classic Pascal / PascalABC Logo
+  pascal: makeSvgDataUri(`
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="64" height="64">
+      <rect width="128" height="128" rx="26" fill="#0284c7"/>
+      <circle cx="64" cy="64" r="46" fill="#0369a1"/>
+      <text x="64" y="80" text-anchor="middle" font-family="Georgia, serif" font-weight="bold" font-size="56" fill="#ffffff">P</text>
+      <text x="64" y="102" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="13" fill="#bae6fd">PASCAL</text>
+    </svg>
+  `),
+
+  // Code::Blocks 4 Color Blocks & C++ Logo
+  codeblocks: makeSvgDataUri(`
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="64" height="64">
+      <rect width="128" height="128" rx="26" fill="#0f172a"/>
+      <rect x="22" y="22" width="38" height="38" rx="6" fill="#ef4444"/>
+      <rect x="68" y="22" width="38" height="38" rx="6" fill="#3b82f6"/>
+      <rect x="22" y="68" width="38" height="38" rx="6" fill="#eab308"/>
+      <rect x="68" y="68" width="38" height="38" rx="6" fill="#10b981"/>
+      <text x="64" y="74" text-anchor="middle" font-family="sans-serif" font-weight="900" font-size="28" fill="#ffffff">C++</text>
+    </svg>
+  `),
+
+  // Standard macOS/Modern Code Editor
   editor: makeSvgDataUri(`
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
-      <defs>
-        <linearGradient id="g2" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#0284c7"/>
-          <stop offset="100%" stop-color="#0369a1"/>
-        </linearGradient>
-      </defs>
-      <rect width="64" height="64" rx="14" fill="url(#g2)"/>
-      <path d="M26 24 l-8 8 l8 8" stroke="#ffffff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-      <path d="M38 24 l8 8 l-8 8" stroke="#ffffff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-      <line x1="34" y1="20" x2="30" y2="44" stroke="#7dd3fc" stroke-width="3" stroke-linecap="round"/>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="64" height="64">
+      <rect width="128" height="128" rx="26" fill="#0f172a"/>
+      <rect x="14" y="14" width="100" height="100" rx="16" fill="#1e293b" stroke="#334155" stroke-width="2"/>
+      <path d="M44 42 L24 64 L44 86" stroke="#38bdf8" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      <path d="M84 42 L104 64 L84 86" stroke="#38bdf8" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      <line x1="72" y1="36" x2="56" y2="92" stroke="#f43f5e" stroke-width="8" stroke-linecap="round"/>
     </svg>
   `),
+
+  // Standard Files Explorer
   files: makeSvgDataUri(`
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
-      <defs>
-        <linearGradient id="g3" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#3b82f6"/>
-          <stop offset="100%" stop-color="#1d4ed8"/>
-        </linearGradient>
-      </defs>
-      <rect width="64" height="64" rx="14" fill="url(#g3)"/>
-      <path d="M16 22 h12 l4 4 h16 a4 4 0 0 1 4 4 v18 a4 4 0 0 1 -4 4 h-32 a4 4 0 0 1 -4 -4 Z" fill="#ffffff" opacity="0.95"/>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="64" height="64">
+      <path d="M16 28 h36 l12 12 h48 a8 8 0 0 1 8 8 v56 a8 8 0 0 1 -8 8 h-96 a8 8 0 0 1 -8 -8 v-76 z" fill="#0284c7"/>
+      <path d="M16 46 h96 a8 8 0 0 1 8 8 v50 a8 8 0 0 1 -8 8 h-96 a8 8 0 0 1 -8 -8 v-50 a8 8 0 0 1 8 -8 z" fill="#38bdf8"/>
     </svg>
   `),
+
+  // Standard Calculator
   calc: makeSvgDataUri(`
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
-      <defs>
-        <linearGradient id="g4" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#475569"/>
-          <stop offset="100%" stop-color="#1e293b"/>
-        </linearGradient>
-      </defs>
-      <rect width="64" height="64" rx="14" fill="url(#g4)"/>
-      <rect x="18" y="16" width="28" height="10" rx="3" fill="#f8fafc"/>
-      <circle cx="23" cy="34" r="3.5" fill="#94a3b8"/>
-      <circle cx="32" cy="34" r="3.5" fill="#94a3b8"/>
-      <circle cx="41" cy="34" r="3.5" fill="#f59e0b"/>
-      <circle cx="23" cy="44" r="3.5" fill="#94a3b8"/>
-      <circle cx="32" cy="44" r="3.5" fill="#94a3b8"/>
-      <circle cx="41" cy="44" r="3.5" fill="#f59e0b"/>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="64" height="64">
+      <rect width="128" height="128" rx="26" fill="#1c1917"/>
+      <rect x="18" y="16" width="92" height="28" rx="8" fill="#292524"/>
+      <text x="100" y="38" text-anchor="end" font-family="sans-serif" font-weight="bold" font-size="20" fill="#f5f5f4">0</text>
+      <rect x="22" y="54" width="38" height="28" rx="6" fill="#44403c"/>
+      <text x="41" y="74" text-anchor="middle" font-family="sans-serif" font-size="20" font-weight="bold" fill="#fff">+</text>
+      <rect x="68" y="54" width="38" height="28" rx="6" fill="#44403c"/>
+      <text x="87" y="74" text-anchor="middle" font-family="sans-serif" font-size="20" font-weight="bold" fill="#fff">−</text>
+      <rect x="22" y="88" width="38" height="28" rx="6" fill="#44403c"/>
+      <text x="41" y="108" text-anchor="middle" font-family="sans-serif" font-size="20" font-weight="bold" fill="#fff">×</text>
+      <rect x="68" y="88" width="38" height="28" rx="6" fill="#ea580c"/>
+      <text x="87" y="108" text-anchor="middle" font-family="sans-serif" font-size="20" font-weight="bold" fill="#fff">=</text>
     </svg>
   `),
-  appGeneric: makeSvgDataUri(`
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
-      <defs>
-        <linearGradient id="g5" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#6366f1"/>
-          <stop offset="100%" stop-color="#4338ca"/>
-        </linearGradient>
-      </defs>
-      <rect width="64" height="64" rx="14" fill="url(#g5)"/>
-      <rect x="22" y="22" width="20" height="20" rx="4" fill="#ffffff" opacity="0.9"/>
+
+  // Standard Windows Notepad Memo
+  notepad: makeSvgDataUri(`
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="64" height="64">
+      <rect x="22" y="14" width="84" height="100" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-width="3"/>
+      <path d="M22 14 h84 v20 h-84 Z" fill="#0284c7"/>
+      <line x1="36" y1="50" x2="92" y2="50" stroke="#94a3b8" stroke-width="4" stroke-linecap="round"/>
+      <line x1="36" y1="66" x2="92" y2="66" stroke="#94a3b8" stroke-width="4" stroke-linecap="round"/>
+      <line x1="36" y1="82" x2="72" y2="82" stroke="#94a3b8" stroke-width="4" stroke-linecap="round"/>
+      <line x1="36" y1="98" x2="84" y2="98" stroke="#94a3b8" stroke-width="4" stroke-linecap="round"/>
+    </svg>
+  `),
+
+  // Web Browser / Website Globe
+  genericWeb: makeSvgDataUri(`
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="64" height="64">
+      <circle cx="64" cy="64" r="54" fill="#0284c7"/>
+      <circle cx="64" cy="64" r="46" fill="none" stroke="#e0f2fe" stroke-width="6"/>
+      <ellipse cx="64" cy="64" rx="24" ry="46" fill="none" stroke="#e0f2fe" stroke-width="5"/>
+      <line x1="18" y1="64" x2="110" y2="64" stroke="#e0f2fe" stroke-width="5"/>
     </svg>
   `)
 };
+
+// Resolver for standard base icons
+function resolveAppIcon(id, sc = null) {
+  const normId = (id || '').toLowerCase();
+  const cmd = (sc?.cmd || '').toLowerCase();
+  const name = (sc?.name || '').toLowerCase();
+  const type = (sc?.type || '').toLowerCase();
+
+  if (normId === 'contest' || name.includes('контест') || name.includes('яндекс')) {
+    return BASE_ICONS.contest;
+  }
+  if (normId === 'editor' || name.includes('редактор')) {
+    return BASE_ICONS.editor;
+  }
+  if (normId === 'files' || name.includes('файл') || name.includes('проводник')) {
+    return BASE_ICONS.files;
+  }
+  if (normId === 'calc' || cmd.includes('calc') || name.includes('калькулятор')) {
+    return BASE_ICONS.calc;
+  }
+  if (normId === 'python' || normId === 'idle' || cmd.includes('python') || name.includes('idle') || name.includes('python')) {
+    return BASE_ICONS.python;
+  }
+  if (normId === 'vscode' || cmd.includes('code') || name.includes('visual studio code') || name.includes('vs code')) {
+    return BASE_ICONS.vscode;
+  }
+  if (normId === 'pycharm' || cmd.includes('pycharm') || name.includes('pycharm')) {
+    return BASE_ICONS.pycharm;
+  }
+  if (normId === 'pascal' || cmd.includes('pascal') || name.includes('pascal')) {
+    return BASE_ICONS.pascal;
+  }
+  if (normId === 'codeblocks' || cmd.includes('codeblocks') || name.includes('c++') || name.includes('code::blocks')) {
+    return BASE_ICONS.codeblocks;
+  }
+  if (normId === 'notepad' || cmd.includes('notepad') || name.includes('блокнот')) {
+    return BASE_ICONS.notepad;
+  }
+  if (type === 'browser' || type === 'url' || sc?.url) {
+    return BASE_ICONS.genericWeb;
+  }
+  return BASE_ICONS.editor;
+}
 
 // ==========================================================================
 // WINDOW MANAGER (MACOS STYLE)
@@ -191,7 +282,7 @@ function openWindow(key, data = null) {
   win.classList.remove('minimized');
   bringToFront(win);
   openWindows.add(key);
-  updateDockRunningStatus();
+  renderDock();
 
   if (key === 'browser') {
     const url = data?.url || currentConfig.contestUrl || 'https://contest.yandex.ru';
@@ -216,14 +307,14 @@ function closeWindow(key) {
   if (!win) return;
   win.style.display = 'none';
   openWindows.delete(key);
-  updateDockRunningStatus();
+  renderDock();
 }
 
 function minimizeWindow(key) {
   const win = WINDOWS_MAP[key];
   if (!win) return;
   win.classList.add('minimized');
-  // Keeps openWindows so dock shows running dot
+  renderDock();
 }
 
 function toggleMaximizeWindow(key) {
@@ -569,41 +660,103 @@ async function refreshDesktopFiles() {
   }
 }
 
+// Built-in system applications on desktop
+const BUILTIN_DESKTOP_APPS = [
+  { id: 'browser', name: 'Яндекс Контест', iconKey: 'contest', type: 'builtin' },
+  { id: 'editor', name: 'Редактор кода', iconKey: 'editor', type: 'builtin' },
+  { id: 'files', name: 'Мои файлы', iconKey: 'files', type: 'builtin' },
+  { id: 'calc', name: 'Калькулятор', iconKey: 'calc', type: 'builtin' }
+];
+
 function renderDesktopIcons() {
-  desktopIcons.innerHTML = desktopFiles.map(f => {
-    const isSelected = selectedItemName === f.name ? 'selected' : '';
-    const iconContent = f.isDirectory 
-      ? `<span style="font-size:36px;">📁</span>`
-      : `<span style="font-size:36px;">${getFileEmoji(f.ext)}</span>`;
+  const items = [];
+
+  // 1. Built-in system programs (Standard base icons)
+  BUILTIN_DESKTOP_APPS.forEach(app => {
+    items.push({
+      id: app.id,
+      name: app.name,
+      icon: BASE_ICONS[app.iconKey],
+      isApp: true,
+      appType: 'builtin'
+    });
+  });
+
+  // 2. Teacher configured shortcuts (PyCharm, VS Code, Python IDLE, Pascal, etc.)
+  (currentConfig.shortcuts || []).forEach(sc => {
+    if (sc.id === 'contest') return; // Handled by built-in browser
+    items.push({
+      id: sc.id,
+      name: sc.name,
+      icon: resolveAppIcon(sc.id, sc),
+      isApp: true,
+      appType: 'shortcut',
+      shortcut: sc
+    });
+  });
+
+  // 3. Workspace files & folders created by the student
+  (desktopFiles || []).forEach(f => {
+    items.push({
+      id: f.name,
+      name: f.name,
+      isApp: false,
+      isDirectory: f.isDirectory,
+      ext: f.ext,
+      fileData: f
+    });
+  });
+
+  desktopIcons.innerHTML = items.map(item => {
+    const isSelected = selectedItemId === item.id ? 'selected' : '';
+    let iconContent = '';
+
+    if (item.isApp) {
+      iconContent = `<img src="${item.icon}" class="desktop-app-img" alt="${escapeHtml(item.name)}">`;
+    } else if (item.isDirectory) {
+      iconContent = `<span style="font-size:36px;">📁</span>`;
+    } else {
+      iconContent = `<span style="font-size:36px;">${getFileEmoji(item.ext)}</span>`;
+    }
 
     return `
-      <div class="desktop-item ${isSelected}" data-name="${f.name}" data-isdir="${f.isDirectory}">
+      <div class="desktop-item ${isSelected}" data-id="${item.id}" data-isapp="${item.isApp}" data-apptype="${item.appType || ''}" data-isdir="${item.isDirectory || false}">
         <div class="desktop-icon-img">${iconContent}</div>
-        <div class="desktop-item-name">${escapeHtml(f.name)}</div>
+        <div class="desktop-item-name">${escapeHtml(item.name)}</div>
       </div>
     `;
   }).join('');
 
   // Attach event handlers
   desktopIcons.querySelectorAll('.desktop-item').forEach(item => {
-    const name = item.getAttribute('data-name');
+    const id = item.getAttribute('data-id');
+    const isApp = item.getAttribute('data-isapp') === 'true';
+    const appType = item.getAttribute('data-apptype');
     const isDir = item.getAttribute('data-isdir') === 'true';
 
     item.addEventListener('click', (e) => {
       e.stopPropagation();
-      selectedItemName = name;
+      selectedItemId = id;
       desktopIcons.querySelectorAll('.desktop-item').forEach(it => it.classList.remove('selected'));
       item.classList.add('selected');
     });
 
     item.addEventListener('dblclick', async (e) => {
       e.stopPropagation();
-      if (isDir) {
-        openWindow('files');
+      if (isApp) {
+        if (appType === 'builtin') {
+          openWindow(id);
+        } else if (appType === 'shortcut') {
+          handleShortcutClick(id);
+        }
       } else {
-        const res = await ipcRenderer.invoke('fs:read-file', name);
-        if (res.success) {
-          openWindow('editor', { filename: name, content: res.content });
+        if (isDir) {
+          openWindow('files');
+        } else {
+          const res = await ipcRenderer.invoke('fs:read-file', id);
+          if (res.success) {
+            openWindow('editor', { filename: id, content: res.content });
+          }
         }
       }
     });
@@ -611,8 +764,13 @@ function renderDesktopIcons() {
     item.addEventListener('contextmenu', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      itemCtxTarget = { name, isDir };
-      openItemContextMenu(e.clientX, e.clientY);
+      if (isApp) {
+        itemCtxTarget = { name: id, isApp: true, appType, isDir: false };
+        openAppContextMenu(e.clientX, e.clientY);
+      } else {
+        itemCtxTarget = { name: id, isApp: false, isDir };
+        openItemContextMenu(e.clientX, e.clientY);
+      }
     });
   });
 }
@@ -626,10 +784,21 @@ desktopSurface.addEventListener('contextmenu', (e) => {
   desktopContextMenu.style.display = 'block';
 });
 
+function openAppContextMenu(x, y) {
+  closeContextMenus();
+  itemContextMenu.style.left = `${Math.min(window.innerWidth - 180, x)}px`;
+  itemContextMenu.style.top = `${Math.min(window.innerHeight - 150, y)}px`;
+  document.getElementById('itemCtxRename').style.display = 'none';
+  document.getElementById('itemCtxDelete').style.display = 'none';
+  itemContextMenu.style.display = 'block';
+}
+
 function openItemContextMenu(x, y) {
   closeContextMenus();
   itemContextMenu.style.left = `${Math.min(window.innerWidth - 180, x)}px`;
   itemContextMenu.style.top = `${Math.min(window.innerHeight - 150, y)}px`;
+  document.getElementById('itemCtxRename').style.display = 'flex';
+  document.getElementById('itemCtxDelete').style.display = 'flex';
   itemContextMenu.style.display = 'block';
 }
 
@@ -640,14 +809,129 @@ function closeContextMenus() {
 
 window.addEventListener('click', () => {
   closeContextMenus();
-  selectedItemName = null;
+  selectedItemId = null;
   desktopIcons.querySelectorAll('.desktop-item').forEach(it => it.classList.remove('selected'));
 });
+
+// Universal In-App Prompt Dialog
+function showPrompt(title, defaultValue = '', subText = '') {
+  return new Promise((resolve) => {
+    const modal = document.getElementById('promptModal');
+    const titleEl = document.getElementById('promptModalTitle');
+    const subEl = document.getElementById('promptModalSub');
+    const inputEl = document.getElementById('promptModalInput');
+    const btnCancel = document.getElementById('btnCancelPrompt');
+    const btnConfirm = document.getElementById('btnConfirmPrompt');
+
+    titleEl.textContent = title || 'Ввод данных';
+    subEl.textContent = subText || 'Введите значение:';
+    subEl.style.display = subText ? 'block' : 'none';
+    inputEl.value = defaultValue || '';
+
+    modal.classList.add('active');
+    modal.style.display = 'flex';
+    setTimeout(() => {
+      inputEl.focus();
+      inputEl.select();
+    }, 50);
+
+    function cleanup() {
+      modal.classList.remove('active');
+      modal.style.display = 'none';
+      btnCancel.onclick = null;
+      btnConfirm.onclick = null;
+      inputEl.onkeydown = null;
+    }
+
+    btnCancel.onclick = () => {
+      cleanup();
+      resolve(null);
+    };
+
+    btnConfirm.onclick = () => {
+      const val = inputEl.value.trim();
+      cleanup();
+      resolve(val);
+    };
+
+    inputEl.onkeydown = (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        btnConfirm.click();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        btnCancel.click();
+      }
+    };
+  });
+}
+
+// Universal In-App Confirm Dialog
+function showConfirm(title, message = '') {
+  return new Promise((resolve) => {
+    const modal = document.getElementById('confirmModal');
+    const titleEl = document.getElementById('confirmModalTitle');
+    const subEl = document.getElementById('confirmModalSub');
+    const btnCancel = document.getElementById('btnCancelConfirm');
+    const btnOk = document.getElementById('btnOkConfirm');
+
+    titleEl.textContent = title || 'Подтверждение';
+    subEl.textContent = message || 'Вы уверены?';
+
+    modal.classList.add('active');
+    modal.style.display = 'flex';
+    setTimeout(() => btnOk.focus(), 50);
+
+    function cleanup() {
+      modal.classList.remove('active');
+      modal.style.display = 'none';
+      btnCancel.onclick = null;
+      btnOk.onclick = null;
+      window.removeEventListener('keydown', handleKey);
+    }
+
+    function handleKey(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        btnOk.click();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        btnCancel.click();
+      }
+    }
+
+    window.addEventListener('keydown', handleKey);
+
+    btnCancel.onclick = () => {
+      cleanup();
+      resolve(false);
+    };
+
+    btnOk.onclick = () => {
+      cleanup();
+      resolve(true);
+    };
+  });
+}
+
+// Global overrides for prompt and confirm
+window.prompt = function(message, defaultValue) {
+  return showPrompt('Ввод данных', defaultValue || '', message || '');
+};
+window.confirm = function(message) {
+  return showConfirm('Подтверждение', message || '');
+};
 
 // Item Context Actions
 document.getElementById('itemCtxOpen').addEventListener('click', async () => {
   if (!itemCtxTarget) return;
-  if (itemCtxTarget.isDir) {
+  if (itemCtxTarget.isApp) {
+    if (itemCtxTarget.appType === 'builtin') {
+      openWindow(itemCtxTarget.name);
+    } else {
+      handleShortcutClick(itemCtxTarget.name);
+    }
+  } else if (itemCtxTarget.isDir) {
     openWindow('files');
   } else {
     const res = await ipcRenderer.invoke('fs:read-file', itemCtxTarget.name);
@@ -659,124 +943,151 @@ document.getElementById('itemCtxOpen').addEventListener('click', async () => {
 });
 
 document.getElementById('itemCtxRename').addEventListener('click', async () => {
-  if (!itemCtxTarget) return;
-  const newName = prompt('Введите новое имя:', itemCtxTarget.name);
-  if (newName && newName !== itemCtxTarget.name) {
-    await ipcRenderer.invoke('fs:rename', { oldName: itemCtxTarget.name, newName });
-    refreshDesktopFiles();
-  }
+  if (!itemCtxTarget || itemCtxTarget.isApp) return;
+  const oldName = itemCtxTarget.name;
   closeContextMenus();
+  const newName = await showPrompt('Переименование', oldName, 'Введите новое имя файла или папки:');
+  if (newName && newName !== oldName) {
+    await ipcRenderer.invoke('fs:rename', { oldName, newName });
+    await refreshDesktopFiles();
+  }
 });
 
 document.getElementById('itemCtxDelete').addEventListener('click', async () => {
-  if (!itemCtxTarget) return;
-  if (confirm(`Удалить "${itemCtxTarget.name}"?`)) {
-    await ipcRenderer.invoke('fs:delete', itemCtxTarget.name);
-    refreshDesktopFiles();
-  }
+  if (!itemCtxTarget || itemCtxTarget.isApp) return;
+  const name = itemCtxTarget.name;
   closeContextMenus();
+  const ok = await showConfirm('Удаление', `Удалить "${name}" безвозвратно?`);
+  if (ok) {
+    await ipcRenderer.invoke('fs:delete', name);
+    await refreshDesktopFiles();
+  }
 });
 
-// Create Desktop Items
+// Create Desktop Items with In-App Prompt
 window.createDesktopItem = async function(type) {
   closeContextMenus();
+  let defaultName = 'solution.py';
+  let defaultContent = '# Решение задачи\n';
+  let title = 'Новый файл Python';
+
   if (type === 'python') {
-    const num = Math.floor(Math.random() * 900) + 100;
-    const name = `solution_${num}.py`;
-    const template = '# Решение олимпиадной задачи на Python\nimport sys\n\ndef solve():\n    pass\n\nif __name__ == "__main__":\n    solve()\n';
-    await ipcRenderer.invoke('fs:create-file', { filename: name, content: template });
-    await refreshDesktopFiles();
-    openWindow('editor', { filename: name, content: template });
+    defaultName = 'solution.py';
+    defaultContent = '# Решение олимпиадной задачи на Python\nimport sys\n\ndef solve():\n    pass\n\nif __name__ == "__main__":\n    solve()\n';
+    title = 'Новый файл Python (.py)';
   } else if (type === 'cpp') {
-    const num = Math.floor(Math.random() * 900) + 100;
-    const name = `task_${num}.cpp`;
-    const template = '#include <iostream>\nusing namespace std;\n\nint main() {\n    ios_base::sync_with_stdio(false);\n    cin.tie(NULL);\n    cout << "Ready!" << endl;\n    return 0;\n}\n';
-    await ipcRenderer.invoke('fs:create-file', { filename: name, content: template });
-    await refreshDesktopFiles();
-    openWindow('editor', { filename: name, content: template });
+    defaultName = 'task.cpp';
+    defaultContent = '#include <iostream>\nusing namespace std;\n\nint main() {\n    ios_base::sync_with_stdio(false);\n    cin.tie(NULL);\n    cout << "Ready!" << endl;\n    return 0;\n}\n';
+    title = 'Новый файл C++ (.cpp)';
   } else if (type === 'pascal') {
-    const num = Math.floor(Math.random() * 900) + 100;
-    const name = `task_${num}.pas`;
-    const template = 'program Olympiad;\nbegin\n    writeln(\'Решение\');\nend.\n';
-    await ipcRenderer.invoke('fs:create-file', { filename: name, content: template });
-    await refreshDesktopFiles();
-    openWindow('editor', { filename: name, content: template });
+    defaultName = 'task.pas';
+    defaultContent = 'program Olympiad;\nbegin\n    writeln(\'Решение\');\nend.\n';
+    title = 'Новый файл Pascal (.pas)';
   } else if (type === 'text') {
-    const num = Math.floor(Math.random() * 900) + 100;
-    const name = `notes_${num}.txt`;
-    await ipcRenderer.invoke('fs:create-file', { filename: name, content: 'Заметки решения:\n' });
-    await refreshDesktopFiles();
-    openWindow('editor', { filename: name, content: 'Заметки решения:\n' });
+    defaultName = 'notes.txt';
+    defaultContent = 'Заметки решения:\n';
+    title = 'Новый текстовый файл (.txt)';
   } else if (type === 'folder') {
-    const num = Math.floor(Math.random() * 90) + 10;
-    const name = `Папка_${num}`;
-    await ipcRenderer.invoke('fs:create-folder', name);
+    const folderName = await showPrompt('Новая папка', 'Новая папка', 'Введите имя новой папки:');
+    if (!folderName) return;
+    await ipcRenderer.invoke('fs:create-folder', folderName);
     await refreshDesktopFiles();
+    return;
   }
+
+  const filename = await showPrompt(title, defaultName, 'Введите имя файла:');
+  if (!filename) return;
+
+  await ipcRenderer.invoke('fs:create-file', { filename, content: defaultContent });
+  await refreshDesktopFiles();
+  openWindow('editor', { filename, content: defaultContent });
 };
 
 // ==========================================================================
-// MACOS DOCK (USER'S EXACT STRUCTURE & WIDE SPACING)
+// MACOS DOCK: ONLY SHOW RUNNING / OPENED PROGRAMS
 // ==========================================================================
 
-function renderDock(shortcuts = []) {
-  // 1. Built-in system apps
-  const builtIns = [
-    { key: 'browser', name: 'Яндекс Контест', icon: DOCK_ICONS.contest },
-    { key: 'editor', name: 'Редактор кода', icon: DOCK_ICONS.editor },
-    { key: 'files', name: 'Файлы (Workspace)', icon: DOCK_ICONS.files },
-    { key: 'calc', name: 'Калькулятор', icon: DOCK_ICONS.calc }
-  ];
+function renderDock() {
+  const runningItems = [];
 
-  let html = builtIns.map(app => {
-    const isRunning = openWindows.has(app.key) ? 'running' : '';
+  // 1. Open built-in windows
+  if (openWindows.has('browser')) {
+    runningItems.push({ key: 'browser', name: 'Яндекс Контест', icon: BASE_ICONS.contest });
+  }
+  if (openWindows.has('editor')) {
+    runningItems.push({ key: 'editor', name: 'Редактор кода', icon: BASE_ICONS.editor });
+  }
+  if (openWindows.has('files')) {
+    runningItems.push({ key: 'files', name: 'Мои файлы', icon: BASE_ICONS.files });
+  }
+  if (openWindows.has('calc')) {
+    runningItems.push({ key: 'calc', name: 'Калькулятор', icon: BASE_ICONS.calc });
+  }
+
+  // 2. Running external shortcuts
+  for (const [scId, sc] of runningExternalApps.entries()) {
+    runningItems.push({
+      key: scId,
+      name: sc.name,
+      icon: resolveAppIcon(scId, sc),
+      isExternal: true
+    });
+  }
+
+  const dockerEl = document.querySelector('.docker');
+  if (runningItems.length === 0) {
+    dockNavList.innerHTML = '';
+    if (dockerEl) dockerEl.classList.add('empty');
+    return;
+  }
+
+  if (dockerEl) dockerEl.classList.remove('empty');
+
+  dockNavList.innerHTML = runningItems.map(app => {
     return `
-      <li class="nav-item ${isRunning}" data-app="${app.key}">
-        <a href="#" class="nav-item__link" onclick="handleDockItemClick('${app.key}')">
-          <img src="${app.icon}" loading="eager" alt="${app.name}" class="image">
+      <li class="nav-item running" data-app="${app.key}">
+        <a href="#" class="nav-item__link" onclick="handleDockItemClick('${app.key}')" oncontextmenu="handleDockItemContextMenu(event, '${app.key}')">
+          <img src="${app.icon}" loading="eager" alt="${escapeHtml(app.name)}" class="image">
           <div class="dock-running-dot"></div>
         </a>
         <div class="nav-item__tooltip">
-          <div>${app.name}</div>
+          <div>${escapeHtml(app.name)}</div>
         </div>
       </li>
     `;
   }).join('');
-
-  // 2. Teacher-configured custom programs / websites
-  (shortcuts || []).forEach(sc => {
-    if (sc.id === 'contest') return; // Handled by builtIn browser
-    const icon = sc.icon === 'code' ? DOCK_ICONS.editor : DOCK_ICONS.appGeneric;
-
-    html += `
-      <li class="nav-item" data-app="${sc.id}">
-        <a href="#" class="nav-item__link" onclick="handleShortcutClick('${sc.id}')">
-          <img src="${icon}" loading="eager" alt="${escapeHtml(sc.name)}" class="image">
-          <div class="dock-running-dot"></div>
-        </a>
-        <div class="nav-item__tooltip">
-          <div>${escapeHtml(sc.name)}</div>
-        </div>
-      </li>
-    `;
-  });
-
-  dockNavList.innerHTML = html;
 }
+
+window.handleDockItemContextMenu = function(e, appKey) {
+  e.preventDefault();
+  e.stopPropagation();
+  if (WINDOWS_MAP[appKey]) {
+    closeWindow(appKey);
+  } else if (runningExternalApps.has(appKey)) {
+    runningExternalApps.delete(appKey);
+    renderDock();
+  }
+};
 
 window.handleDockItemClick = function(appKey) {
   const win = WINDOWS_MAP[appKey];
-  if (!win) return;
+  if (win) {
+    if (win.style.display === 'none') {
+      openWindow(appKey);
+    } else if (win.classList.contains('minimized')) {
+      win.classList.remove('minimized');
+      bringToFront(win);
+    } else if (win.classList.contains('active')) {
+      minimizeWindow(appKey);
+    } else {
+      bringToFront(win);
+    }
+    return;
+  }
 
-  if (win.style.display === 'none') {
-    openWindow(appKey);
-  } else if (win.classList.contains('minimized')) {
-    win.classList.remove('minimized');
-    bringToFront(win);
-  } else if (win.classList.contains('active')) {
-    minimizeWindow(appKey);
-  } else {
-    bringToFront(win);
+  // External app
+  if (runningExternalApps.has(appKey)) {
+    ipcRenderer.invoke('launch-app', appKey);
   }
 };
 
@@ -789,10 +1100,16 @@ window.handleShortcutClick = async function(scId) {
     return;
   }
 
-  // External program launch
+  // Add to running in dock
+  runningExternalApps.set(scId, sc);
+  renderDock();
+
+  // Launch external program
   const res = await ipcRenderer.invoke('launch-app', scId);
   if (!res.success && res.message) {
-    alert(res.message);
+    runningExternalApps.delete(scId);
+    renderDock();
+    await showConfirm('Ошибка запуска', res.message);
   }
 };
 
@@ -811,7 +1128,8 @@ function escapeHtml(text) {
 
 ipcRenderer.on('config-update', (event, config) => {
   currentConfig = { ...currentConfig, ...config };
-  renderDock(config.shortcuts || []);
+  renderDesktopIcons();
+  renderDock();
 });
 
 ipcRenderer.on('exam-update', (event, exam) => {
@@ -902,7 +1220,8 @@ unlockPasswordInput.addEventListener('keydown', (e) => {
 ipcRenderer.invoke('get-config').then(cfg => {
   if (cfg) {
     currentConfig = { ...currentConfig, ...cfg };
-    renderDock(cfg.shortcuts || []);
+    renderDesktopIcons();
+    renderDock();
   }
 });
 
