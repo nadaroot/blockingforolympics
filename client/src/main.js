@@ -111,6 +111,7 @@ function openSafeBrowser(urlToOpen) {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      webviewTag: true,
       devTools: false,
       preload: path.join(__dirname, 'browser', 'browser-preload.js')
     }
