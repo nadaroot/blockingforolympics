@@ -39,11 +39,27 @@ class Watchdog {
     this.onViolation = onViolationCallback;
     this.shouldKill = shouldKill;
 
+    // Instant sweep on startup: terminate all prohibited processes immediately
+    this.sweepOnStartup(shouldKill);
+    this.checkProcesses();
+
     this.timer = setInterval(() => {
       this.checkProcesses();
     }, this.intervalMs);
 
     console.log(`[Watchdog] Security process scanner active (kill mode: ${shouldKill})`);
+  }
+
+  sweepOnStartup(shouldKill = true) {
+    if (!shouldKill) return;
+    try {
+      const imArgs = BLACKLIST_PROCESSES.map(p => `/IM "${p}"`).join(' ');
+      exec(`taskkill /F ${imArgs}`, (err) => {
+        if (!err) {
+          console.log('[Watchdog] Startup cleanup: all external unauthorized processes closed.');
+        }
+      });
+    } catch (_) {}
   }
 
   stop() {

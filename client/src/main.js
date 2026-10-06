@@ -118,7 +118,8 @@ function createAllShellWindows() {
     backgroundColor: '#050505',
     webPreferences: {
       nodeIntegration: true,
-      contextIsolation: false
+      contextIsolation: false,
+      webviewTag: true
     }
   });
 
@@ -246,11 +247,137 @@ function openSafeBrowser(urlToOpen) {
   });
 }
 
+const workspaceDir = path.join(os.homedir(), 'Desktop', 'LOKED_Workspace');
+function ensureWorkspace() {
+  try {
+    if (!fs.existsSync(workspaceDir)) {
+      fs.mkdirSync(workspaceDir, { recursive: true });
+    }
+    const sampleSolution = path.join(workspaceDir, 'solution.py');
+    if (!fs.existsSync(sampleSolution)) {
+      fs.writeFileSync(sampleSolution, '# Олимпиадное решение на Python\nimport sys\n\ndef solve():\n    # Напишите ваше решение здесь\n    pass\n\nif __name__ == "__main__":\n    solve()\n', 'utf-8');
+    }
+    const sampleNotes = path.join(workspaceDir, 'notes.txt');
+    if (!fs.existsSync(sampleNotes)) {
+      fs.writeFileSync(sampleNotes, 'Черновик для формул, идей и заметок олимпиады.\n', 'utf-8');
+    }
+  } catch (e) {
+    console.warn('[Workspace] Error initializing workspace dir:', e);
+  }
+}
+ensureWorkspace();
+
 // Setup IPC handlers
 function setupIPC() {
   ipcMain.handle('get-config', () => {
     return getFilteredConfig();
   });
+
+  // Desktop File System Handlers
+  ipcMain.handle('fs:list', async () => {
+    ensureWorkspace();
+    try {
+      const files = fs.readdirSync(workspaceDir);
+      return files.map(name => {
+        const full = path.join(workspaceDir, name);
+        const stat = fs.statSync(full);
+        return {
+          name,
+          isDirectory: stat.isDirectory(),
+          size: stat.size,
+          mtime: stat.mtimeMs,
+          ext: path.extname(name).toLowerCase()
+        };
+      });
+    } catch (e) {
+      return [];
+    }
+  });
+
+  ipcMain.handle('fs:read-file', async (event, filename) => {
+    try {
+      const full = path.join(workspaceDir, path.basename(filename));
+      if (fs.existsSync(full)) {
+        return { success: true, content: fs.readFileSync(full, 'utf-8'), filename: path.basename(filename) };
+      }
+      return { success: false, message: 'Файл не найден' };
+    } catch (e) {
+      return { success: false, message: e.message };
+    }
+  });
+
+  ipcMain.handle('fs:save-file', async (event, { filename, content }) => {
+    try {
+      const full = path.join(workspaceDir, path.basename(filename));
+      fs.writeFileSync(full, content, 'utf-8');
+      return { success: true };
+    } catch (e) {
+      return { success: false, message: e.message };
+    }
+  });
+
+  ipcMain.handle('fs:create-file', async (event, { filename, content = '' }) => {
+    try {
+      const safeName = path.basename(filename);
+      const full = path.join(workspaceDir, safeName);
+      if (fs.existsSync(full)) {
+        return { success: false, message: 'Файл с таким именем уже существует' };
+      }
+      fs.writeFileSync(full, content, 'utf-8');
+      return { success: true, name: safeName };
+    } catch (e) {
+      return { success: false, message: e.message };
+    }
+  });
+
+  ipcMain.handle('fs:create-folder', async (event, folderName) => {
+    try {
+      const safeName = path.basename(folderName);
+      const full = path.join(workspaceDir, safeName);
+      if (!fs.existsSync(full)) {
+        fs.mkdirSync(full, { recursive: true });
+        return { success: true, name: safeName };
+      }
+      return { success: false, message: 'Папка с таким именем уже существует' };
+    } catch (e) {
+      return { success: false, message: e.message };
+    }
+  });
+
+  ipcMain.handle('fs:delete', async (event, itemName) => {
+    try {
+      const safeName = path.basename(itemName);
+      const full = path.join(workspaceDir, safeName);
+      if (fs.existsSync(full)) {
+        const stat = fs.statSync(full);
+        if (stat.isDirectory()) {
+          fs.rmdirSync(full, { recursive: true });
+        } else {
+          fs.unlinkSync(full);
+        }
+        return { success: true };
+      }
+      return { success: false, message: 'Элемент не найден' };
+    } catch (e) {
+      return { success: false, message: e.message };
+    }
+  });
+
+  ipcMain.handle('fs:rename', async (event, { oldName, newName }) => {
+    try {
+      const oldPath = path.join(workspaceDir, path.basename(oldName));
+      const newPath = path.join(workspaceDir, path.basename(newName));
+      if (fs.existsSync(oldPath)) {
+        fs.renameSync(oldPath, newPath);
+        return { success: true };
+      }
+      return { success: false, message: 'Файл не найден' };
+    } catch (e) {
+      return { success: false, message: e.message };
+    }
+  });
+
+  ipcMain.handle('fs:get-workspace-path', () => workspaceDir);
 
   ipcMain.handle('launch-app', async (event, shortcutId) => {
     const sc = (currentConfig.shortcuts || []).find(s => s.id === shortcutId);
