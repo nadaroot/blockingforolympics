@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LOKED Desktop</title>
+  <link rel="stylesheet" href="shell.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+  <div class="desktop-wallpaper"></div>
+
+  <div class="shell-container">
+    <!-- Top Bar -->
+    <header class="shell-topbar">
+      <div class="station-identity">
+        <div class="station-icon"><i class="fa-solid fa-graduation-cap"></i></div>
+        <div>
+          <h2 id="stationName">ПК ОЛИМПИАДНИКА</h2>
+          <span class="station-sub" id="netStatus"><i class="fa-solid fa-circle text-success"></i> Подключение к серверу...</span>
+        </div>
+      </div>
+
+      <!-- Sync Exam Timer -->
+      <div class="exam-timer-card" id="examTimerCard">
+        <div class="timer-title"><i class="fa-regular fa-clock"></i> Время олимпиады</div>
+        <div class="timer-digits" id="timerDigits">--:--:--</div>
+        <div class="timer-badge badge-waiting" id="timerBadge">Ожидание старта</div>
+      </div>
+
+      <div class="system-clock" id="systemClock">
+        12:00:00
+      </div>
+    </header>
+
+    <!-- Main Desktop Workspace: Grid of Authorized Icons -->
+    <main class="desktop-workspace">
+      <div class="shortcuts-grid" id="shortcutsGrid">
+        <!-- Rendered dynamically -->
+      </div>
+    </main>
+
+    <!-- Bottom Taskbar -->
+    <footer class="shell-taskbar">
+      <div class="taskbar-security">
+        <i class="fa-solid fa-shield-halved text-success"></i>
+        <span>Защита активна: рабочий стол изолирован, системные хоткеи и поиск отключены</span>
+      </div>
+
+      <div class="taskbar-actions">
+        <button class="btn-unlock" id="btnUnlockPrompt" title="Только для учителя">
+          <i class="fa-solid fa-key"></i> Разблокировать ПК
+        </button>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Teacher Broadcast Banner -->
+  <div class="broadcast-banner" id="broadcastBanner">
+    <div class="broadcast-content">
+      <i class="fa-solid fa-bullhorn broadcast-icon"></i>
+      <div>
+        <h4>Объявление от учителя:</h4>
+        <p id="broadcastText">Сообщение...</p>
+      </div>
+    </div>
+    <button class="btn-close-banner" id="btnCloseBanner">&times;</button>
+  </div>
+
+  <!-- Violation Warning Toast -->
+  <div class="violation-modal" id="violationModal">
+    <div class="violation-dialog">
+      <i class="fa-solid fa-triangle-exclamation violation-icon"></i>
+      <h3>НАРУШЕНИЕ РЕГЛАМЕНТА!</h3>
+      <p id="violationMsg">Обнаружена попытка запуска стороннего приложения. Процесс был немедленно завершен, а отчет передан учителю.</p>
+      <button class="btn-violation-ack" id="btnAckViolation">Понятно, вернуться к работе</button>
+    </div>
+  </div>
+
+  <!-- Locked Screen Overlay (When teacher locks all screens) -->
+  <div class="screen-locker-overlay" id="screenLockerOverlay">
+    <div class="locker-content">
+      <i class="fa-solid fa-lock locker-icon"></i>
+      <h2>ЭКРАН ВРЕМЕННО ЗАБЛОКИРОВАН</h2>
+      <p id="lockerReason">Ожидайте указаний учителя или начала тура олимпиады.</p>
+    </div>
+  </div>
+
+  <!-- Master Unlock Password Modal -->
+  <div class="unlock-modal" id="unlockModal">
+    <div class="unlock-dialog">
+      <h3><i class="fa-solid fa-user-shield"></i> Доступ администратора</h3>
+      <p>Введите мастер-пароль для временного выхода из режима олимпиады:</p>
+      <input type="password" id="unlockPasswordInput" class="unlock-input" placeholder="Пароль учителя">
+      <div class="unlock-actions">
+        <button class="btn-cancel" id="btnCancelUnlock">Отмена</button>
+        <button class="btn-confirm" id="btnConfirmUnlock">Разблокировать</button>
+      </div>
+      <div class="unlock-error" id="unlockError" style="display:none;">Неверный мастер-пароль</div>
+    </div>
+  </div>
+
+  <script src="shell.js"></script>
+</body>
+</html>

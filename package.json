@@ -1,0 +1,30 @@
+{
+  "name": "loked",
+  "version": "1.0.0",
+  "description": "LOKED - Locked Olympiad Kiosk Environment",
+  "main": "server/src/index.js",
+  "scripts": {
+    "start:server": "node server/src/index.js",
+    "start:client": "electron client/src/main.js",
+    "start:admin": "electron admin-desktop/main.js",
+    "build:locker": "\"C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\csc.exe\" /nologo /target:winexe /out:client/native/locker.exe client/native/Locker.cs"
+  },
+  "keywords": [
+    "kiosk",
+    "exam",
+    "olympiad",
+    "school",
+    "lockdown"
+  ],
+  "author": "LOKED Team",
+  "license": "MIT",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "socket.io": "^4.7.5",
+    "socket.io-client": "^4.7.5"
+  },
+  "devDependencies": {
+    "electron": "^30.0.0"
+  }
+}

@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LOKED Safe Browser</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      user-select: none;
+    }
+
+    body {
+      background-color: #0b0f19;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* Top Navigation Toolbar */
+    .browser-toolbar {
+      height: 48px;
+      background: #0f172a;
+      border-bottom: 1px solid #1e293b;
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      gap: 12px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+      z-index: 100;
+    }
+
+    .nav-buttons {
+      display: flex;
+      gap: 6px;
+    }
+
+    .btn-icon {
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: #cbd5e1;
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-icon:hover {
+      background: #334155;
+      color: #fff;
+    }
+
+    .btn-icon:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+
+    /* Read-only URL badge (NO search, NO address bar!) */
+    .url-badge-container {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .url-badge {
+      background: #1e293b;
+      border: 1px solid #334155;
+      padding: 6px 16px;
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: #94a3b8;
+      max-width: 600px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .url-badge i {
+      color: #10b981;
+      font-size: 12px;
+    }
+
+    .url-badge b {
+      color: #f1f5f9;
+      font-weight: 600;
+    }
+
+    /* Right actions */
+    .toolbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-desktop {
+      background: #3b82f6;
+      border: none;
+      color: #fff;
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .btn-desktop:hover {
+      background: #2563eb;
+    }
+
+    /* Webview Container */
+    .webview-wrapper {
+      flex: 1;
+      position: relative;
+      background: #fff;
+    }
+
+    webview {
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Toast Alert for blocked URLs */
+    .toast-alert {
+      position: fixed;
+      top: 60px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(239, 68, 68, 0.95);
+      color: #fff;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      display: none;
+      align-items: center;
+      gap: 10px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      z-index: 1000;
+      animation: fadeIn 0.3s;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translate(-50%, -10px); }
+      to { opacity: 1; transform: translate(-50%, 0); }
+    }
+  </style>
+</head>
+<body>
+  <!-- Navigation bar -->
+  <div class="browser-toolbar">
+    <div class="nav-buttons">
+      <button class="btn-icon" id="btnBack" title="Назад"><i class="fa-solid fa-arrow-left"></i></button>
+      <button class="btn-icon" id="btnForward" title="Вперед"><i class="fa-solid fa-arrow-right"></i></button>
+      <button class="btn-icon" id="btnReload" title="Обновить"><i class="fa-solid fa-rotate-right"></i></button>
+    </div>
+
+    <!-- Read-only Domain Badge: NO URL input, NO omnibox search -->
+    <div class="url-badge-container">
+      <div class="url-badge">
+        <i class="fa-solid fa-shield-halved"></i>
+        <span>Безопасный режим олимпиады: <b id="currentDomain">Загрузка...</b></span>
+      </div>
+    </div>
+
+    <div class="toolbar-actions">
+      <button class="btn-icon" id="btnZoomOut" title="Уменьшить масштаб"><i class="fa-solid fa-magnifying-glass-minus"></i></button>
+      <button class="btn-icon" id="btnZoomIn" title="Увеличить масштаб"><i class="fa-solid fa-magnifying-glass-plus"></i></button>
+      <button class="btn-desktop" id="btnCloseBrowser">
+        <i class="fa-solid fa-house"></i> На рабочий стол
+      </button>
+    </div>
+  </div>
+
+  <!-- Webview Container -->
+  <div class="webview-wrapper">
+    <webview id="wv" partition="persist:loked_session" allowpopups="false"></webview>
+  </div>
+
+  <!-- Blocked URL Toast -->
+  <div class="toast-alert" id="toastAlert">
+    <i class="fa-solid fa-triangle-exclamation"></i>
+    <span id="toastMsg">Переход на внешний ресурс заблокирован регламентом олимпиады!</span>
+  </div>
+
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const initialUrl = urlParams.get('initialUrl') || 'https://contest.yandex.ru';
+
+    const wv = document.getElementById('wv');
+    const currentDomainEl = document.getElementById('currentDomain');
+    const btnBack = document.getElementById('btnBack');
+    const btnForward = document.getElementById('btnForward');
+    const btnReload = document.getElementById('btnReload');
+    const btnZoomIn = document.getElementById('btnZoomIn');
+    const btnZoomOut = document.getElementById('btnZoomOut');
+    const btnCloseBrowser = document.getElementById('btnCloseBrowser');
+    const toastAlert = document.getElementById('toastAlert');
+    const toastMsg = document.getElementById('toastMsg');
+
+    let currentZoom = 1.0;
+
+    // Show warning toast
+    function showBlockedToast(url) {
+      toastMsg.textContent = `Доступ заблокирован: переход на внешний ресурс запрещен (${url})`;
+      toastAlert.style.display = 'flex';
+      setTimeout(() => {
+        toastAlert.style.display = 'none';
+      }, 4000);
+    }
+
+    // Initialize webview
+    wv.setAttribute('src', initialUrl);
+
+    wv.addEventListener('dom-ready', () => {
+      updateNavState();
+      try {
+        const parsed = new URL(wv.getURL());
+        currentDomainEl.textContent = parsed.hostname;
+      } catch (_) {}
+
+      // Disable context menu inside webview
+      wv.executeJavaScript(`
+        window.addEventListener('contextmenu', (e) => e.preventDefault(), true);
+      `);
+    });
+
+    wv.addEventListener('did-navigate', (e) => {
+      try {
+        const parsed = new URL(e.url);
+        currentDomainEl.textContent = parsed.hostname;
+      } catch (_) {}
+      updateNavState();
+    });
+
+    // Intercept navigation
+    wv.addEventListener('will-navigate', (e) => {
+      try {
+        const parsed = new URL(e.url);
+        // Whitelisted domains check
+        const host = parsed.hostname.toLowerCase();
+        // Allow common contest domains and CDNs
+        const isAllowed = host.includes('yandex') || 
+                          host.includes('codeforces') || 
+                          host.includes('informatics') || 
+                          host.includes('acmp') || 
+                          host.includes('ejudge');
+
+        if (!isAllowed) {
+          e.preventDefault();
+          showBlockedToast(host);
+        }
+      } catch (_) {}
+    });
+
+    // Block any popup or new window attempt
+    wv.addEventListener('new-window', (e) => {
+      e.preventDefault();
+      try {
+        const parsed = new URL(e.url);
+        const host = parsed.hostname.toLowerCase();
+        const isAllowed = host.includes('yandex') || host.includes('codeforces') || host.includes('informatics');
+        if (isAllowed) {
+          wv.loadURL(e.url);
+        } else {
+          showBlockedToast(host);
+        }
+      } catch (_) {}
+    });
+
+    function updateNavState() {
+      btnBack.disabled = !wv.canGoBack();
+      btnForward.disabled = !wv.canGoForward();
+    }
+
+    btnBack.addEventListener('click', () => { if (wv.canGoBack()) wv.goBack(); });
+    btnForward.addEventListener('click', () => { if (wv.canGoForward()) wv.goForward(); });
+    btnReload.addEventListener('click', () => { wv.reload(); });
+
+    btnZoomIn.addEventListener('click', () => {
+      currentZoom = Math.min(2.0, currentZoom + 0.1);
+      wv.setZoomFactor(currentZoom);
+    });
+
+    btnZoomOut.addEventListener('click', () => {
+      currentZoom = Math.max(0.6, currentZoom - 0.1);
+      wv.setZoomFactor(currentZoom);
+    });
+
+    btnCloseBrowser.addEventListener('click', () => {
+      if (window.lokedBrowser) {
+        window.lokedBrowser.close();
+      }
+    });
+  </script>
+</body>
+</html>
