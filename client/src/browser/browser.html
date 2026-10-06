@@ -3,8 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LOKED Safe Browser</title>
-  <link rel="stylesheet" href="../shell/vendor/font-awesome/css/all.min.css">
+  <title>LOKED Browser</title>
   <style>
     * {
       margin: 0;
@@ -15,58 +14,56 @@
     }
 
     body {
-      background-color: #0b0f19;
-      color: #fff;
+      background-color: #050505;
+      color: #ededed;
       display: flex;
       flex-direction: column;
       height: 100vh;
       overflow: hidden;
     }
 
-    /* Top Navigation Toolbar */
     .browser-toolbar {
-      height: 48px;
-      background: #0f172a;
-      border-bottom: 1px solid #1e293b;
+      height: 44px;
+      background: #080808;
+      border-bottom: 1px solid #1c1c1c;
       display: flex;
       align-items: center;
-      padding: 0 16px;
-      gap: 12px;
-      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+      padding: 0 14px;
+      gap: 10px;
       z-index: 100;
     }
 
     .nav-buttons {
       display: flex;
-      gap: 6px;
+      gap: 4px;
     }
 
     .btn-icon {
-      background: #1e293b;
-      border: 1px solid #334155;
-      color: #cbd5e1;
-      width: 32px;
-      height: 32px;
+      background: transparent;
+      border: 1px solid transparent;
+      color: #888888;
+      width: 30px;
+      height: 30px;
       border-radius: 6px;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 13px;
       cursor: pointer;
-      transition: all 0.2s;
+      transition: all 0.15s;
     }
 
     .btn-icon:hover {
-      background: #334155;
-      color: #fff;
+      background: #141414;
+      border-color: #262626;
+      color: #ededed;
     }
 
     .btn-icon:disabled {
-      opacity: 0.3;
+      opacity: 0.25;
       cursor: not-allowed;
     }
 
-    /* Read-only URL badge (NO search, NO address bar!) */
+    /* Minimalist URL badge (Read-only, NO omnibox search) */
     .url-badge-container {
       flex: 1;
       display: flex;
@@ -75,58 +72,50 @@
     }
 
     .url-badge {
-      background: #1e293b;
-      border: 1px solid #334155;
-      padding: 6px 16px;
-      border-radius: 20px;
+      background: #0d0d0d;
+      border: 1px solid #1f1f1f;
+      padding: 4px 12px;
+      border-radius: 9999px;
       display: flex;
       align-items: center;
-      gap: 8px;
-      font-size: 12px;
-      color: #94a3b8;
-      max-width: 600px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .url-badge i {
-      color: #10b981;
-      font-size: 12px;
+      gap: 6px;
+      font-size: 11px;
+      color: #737373;
+      max-width: 480px;
     }
 
     .url-badge b {
-      color: #f1f5f9;
-      font-weight: 600;
+      color: #d4d4d4;
+      font-weight: 500;
     }
 
-    /* Right actions */
     .toolbar-actions {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
     }
 
     .btn-desktop {
-      background: #3b82f6;
-      border: none;
-      color: #fff;
-      padding: 6px 14px;
+      background: #171717;
+      border: 1px solid #262626;
+      color: #d4d4d4;
+      padding: 5px 12px;
       border-radius: 6px;
       font-size: 12px;
-      font-weight: 600;
+      font-weight: 500;
       display: flex;
       align-items: center;
       gap: 6px;
       cursor: pointer;
-      transition: background 0.2s;
+      transition: all 0.15s;
     }
 
     .btn-desktop:hover {
-      background: #2563eb;
+      background: #222222;
+      color: #ffffff;
+      border-color: #383838;
     }
 
-    /* Webview Container */
     .webview-wrapper {
       flex: 1;
       position: relative;
@@ -138,67 +127,67 @@
       height: 100%;
     }
 
-    /* Toast Alert for blocked URLs */
     .toast-alert {
       position: fixed;
-      top: 60px;
+      top: 56px;
       left: 50%;
       transform: translateX(-50%);
-      background: rgba(239, 68, 68, 0.95);
-      color: #fff;
-      padding: 12px 24px;
+      background: #171717;
+      border: 1px solid #ef4444;
+      color: #f87171;
+      padding: 8px 16px;
       border-radius: 8px;
-      font-size: 13px;
-      font-weight: 600;
+      font-size: 12px;
       display: none;
       align-items: center;
-      gap: 10px;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      gap: 8px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.7);
       z-index: 1000;
-      animation: fadeIn 0.3s;
-    }
-
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translate(-50%, -10px); }
-      to { opacity: 1; transform: translate(-50%, 0); }
     }
   </style>
 </head>
 <body>
-  <!-- Navigation bar -->
   <div class="browser-toolbar">
     <div class="nav-buttons">
-      <button class="btn-icon" id="btnBack" title="Назад"><i class="fa-solid fa-arrow-left"></i></button>
-      <button class="btn-icon" id="btnForward" title="Вперед"><i class="fa-solid fa-arrow-right"></i></button>
-      <button class="btn-icon" id="btnReload" title="Обновить"><i class="fa-solid fa-rotate-right"></i></button>
+      <button class="btn-icon" id="btnBack" title="Назад">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+      </button>
+      <button class="btn-icon" id="btnForward" title="Вперед">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+      </button>
+      <button class="btn-icon" id="btnReload" title="Обновить">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
+      </button>
     </div>
 
-    <!-- Read-only Domain Badge: NO URL input, NO omnibox search -->
     <div class="url-badge-container">
       <div class="url-badge">
-        <i class="fa-solid fa-shield-halved"></i>
-        <span>Безопасный режим олимпиады: <b id="currentDomain">Загрузка...</b></span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        <span><b id="currentDomain">Загрузка...</b></span>
       </div>
     </div>
 
     <div class="toolbar-actions">
-      <button class="btn-icon" id="btnZoomOut" title="Уменьшить масштаб"><i class="fa-solid fa-magnifying-glass-minus"></i></button>
-      <button class="btn-icon" id="btnZoomIn" title="Увеличить масштаб"><i class="fa-solid fa-magnifying-glass-plus"></i></button>
+      <button class="btn-icon" id="btnZoomOut" title="Уменьшить">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" x2="19" y1="12" y2="12"/></svg>
+      </button>
+      <button class="btn-icon" id="btnZoomIn" title="Увеличить">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/></svg>
+      </button>
       <button class="btn-desktop" id="btnCloseBrowser">
-        <i class="fa-solid fa-house"></i> На рабочий стол
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        Рабочий стол
       </button>
     </div>
   </div>
 
-  <!-- Webview Container -->
   <div class="webview-wrapper">
     <webview id="wv" partition="persist:loked_session" allowpopups="false"></webview>
   </div>
 
-  <!-- Blocked URL Toast -->
   <div class="toast-alert" id="toastAlert">
-    <i class="fa-solid fa-triangle-exclamation"></i>
-    <span id="toastMsg">Переход на внешний ресурс заблокирован регламентом олимпиады!</span>
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
+    <span id="toastMsg">Переход на внешний адрес заблокирован регламентом олимпиады</span>
   </div>
 
   <script>
@@ -218,16 +207,12 @@
 
     let currentZoom = 1.0;
 
-    // Show warning toast
-    function showBlockedToast(url) {
-      toastMsg.textContent = `Доступ заблокирован: переход на внешний ресурс запрещен (${url})`;
+    function showBlockedToast(host) {
+      toastMsg.textContent = `Внешний ресурс заблокирован (${host})`;
       toastAlert.style.display = 'flex';
-      setTimeout(() => {
-        toastAlert.style.display = 'none';
-      }, 4000);
+      setTimeout(() => { toastAlert.style.display = 'none'; }, 3500);
     }
 
-    // Initialize webview
     wv.setAttribute('src', initialUrl);
 
     wv.addEventListener('dom-ready', () => {
@@ -237,7 +222,6 @@
         currentDomainEl.textContent = parsed.hostname;
       } catch (_) {}
 
-      // Disable context menu inside webview
       wv.executeJavaScript(`
         window.addEventListener('contextmenu', (e) => e.preventDefault(), true);
       `);
@@ -251,19 +235,11 @@
       updateNavState();
     });
 
-    // Intercept navigation
     wv.addEventListener('will-navigate', (e) => {
       try {
         const parsed = new URL(e.url);
-        // Whitelisted domains check
         const host = parsed.hostname.toLowerCase();
-        // Allow common contest domains and CDNs
-        const isAllowed = host.includes('yandex') || 
-                          host.includes('codeforces') || 
-                          host.includes('informatics') || 
-                          host.includes('acmp') || 
-                          host.includes('ejudge');
-
+        const isAllowed = host.includes('yandex') || host.includes('codeforces') || host.includes('informatics') || host.includes('acmp') || host.includes('ejudge');
         if (!isAllowed) {
           e.preventDefault();
           showBlockedToast(host);
@@ -271,7 +247,6 @@
       } catch (_) {}
     });
 
-    // Block any popup or new window attempt
     wv.addEventListener('new-window', (e) => {
       e.preventDefault();
       try {

@@ -33,16 +33,17 @@ class Watchdog {
     this.recentlyKilled = new Set();
   }
 
-  start(onViolationCallback) {
+  start(onViolationCallback, shouldKill = true) {
     if (this.isRunning) return;
     this.isRunning = true;
     this.onViolation = onViolationCallback;
+    this.shouldKill = shouldKill;
 
     this.timer = setInterval(() => {
       this.checkProcesses();
     }, this.intervalMs);
 
-    console.log('[Watchdog] Security process scanner active');
+    console.log(`[Watchdog] Security process scanner active (kill mode: ${shouldKill})`);
   }
 
   stop() {
@@ -77,20 +78,28 @@ class Watchdog {
   }
 
   killProcess(processName) {
-    exec(`taskkill /F /IM "${processName}"`, (err) => {
+    const doReport = () => {
       if (!this.recentlyKilled.has(processName)) {
         this.recentlyKilled.add(processName);
         setTimeout(() => this.recentlyKilled.delete(processName), 5000);
 
-        console.warn(`[Watchdog] Terminated prohibited process: ${processName}`);
+        console.warn(`[Watchdog] Prohibited process detected: ${processName} (killed: ${this.shouldKill})`);
         if (typeof this.onViolation === 'function') {
           this.onViolation({
             processName,
-            details: 'Принудительно закрыт Watchdog-системой'
+            details: this.shouldKill ? 'Принудительно закрыт Watchdog-системой' : 'Зафиксирован в режиме тестирования'
           });
         }
       }
-    });
+    };
+
+    if (this.shouldKill) {
+      exec(`taskkill /F /IM "${processName}"`, (err) => {
+        doReport();
+      });
+    } else {
+      doReport();
+    }
   }
 }
 

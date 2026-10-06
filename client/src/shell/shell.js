@@ -1,114 +1,56 @@
 const { ipcRenderer } = require('electron');
-const os = require('os');
 
-// DOM Elements
-const stationNameEl = document.getElementById('stationName');
-const netStatusEl = document.getElementById('netStatus');
-const timerDigitsEl = document.getElementById('timerDigits');
-const timerBadgeEl = document.getElementById('timerBadge');
-const systemClockEl = document.getElementById('systemClock');
-const shortcutsGridEl = document.getElementById('shortcutsGrid');
+// Elements
+const timerContainer = document.getElementById('examTimerContainer');
+const timerDot = document.getElementById('timerDot');
+const timerDigits = document.getElementById('timerDigits');
+const timerLabel = document.getElementById('timerLabel');
+const systemClock = document.getElementById('systemClock');
+const shortcutsGrid = document.getElementById('shortcutsGrid');
 
-// Modals & Overlays
 const broadcastBanner = document.getElementById('broadcastBanner');
 const broadcastText = document.getElementById('broadcastText');
 const btnCloseBanner = document.getElementById('btnCloseBanner');
 
-const violationModal = document.getElementById('violationModal');
-const violationMsg = document.getElementById('violationMsg');
-const btnAckViolation = document.getElementById('btnAckViolation');
-
 const screenLockerOverlay = document.getElementById('screenLockerOverlay');
-const lockerReasonEl = document.getElementById('lockerReason');
+const lockerReason = document.getElementById('lockerReason');
 
 const unlockModal = document.getElementById('unlockModal');
 const unlockPasswordInput = document.getElementById('unlockPasswordInput');
-const btnUnlockPrompt = document.getElementById('btnUnlockPrompt');
 const btnCancelUnlock = document.getElementById('btnCancelUnlock');
 const btnConfirmUnlock = document.getElementById('btnConfirmUnlock');
-const unlockErrorEl = document.getElementById('unlockError');
+const unlockError = document.getElementById('unlockError');
 
-// State
-let stationHostname = os.hostname();
-stationNameEl.textContent = `СТАНЦИЯ: ${stationHostname.toUpperCase()}`;
+// Minimal SVG Icons (Lucide/Geist stroke icons)
+const ICONS = {
+  trophy: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>`,
+  code: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>`,
+  terminal: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/></svg>`,
+  calculator: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" x2="16" y1="6" y2="6"/><line x1="16" x2="16" y1="14" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/></svg>`,
+  file: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>`,
+  cpu: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="16" x="4" y="4" rx="2"/><rect width="6" height="6" x="9" y="9" rx="1"/><path d="M15 2v2"/><path d="M15 20v2"/><path d="M2 15h2"/><path d="M2 9h2"/><path d="M20 15h2"/><path d="M20 9h2"/><path d="M9 2v2"/><path d="M9 20v2"/></svg>`,
+  cube: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.12 6.4-6.05-4.06a4.95 4.95 0 0 0-5.14 0L3.88 6.4a2.98 2.98 0 0 0-1.88 2.76v5.68c0 1.16.68 2.2 1.88 2.76l6.05 4.06c1.62 1.08 3.52 1.08 5.14 0l6.05-4.06c1.2-.56 1.88-1.6 1.88-2.76V9.16c0-1.16-.68-2.2-1.88-2.76Z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" x2="12" y1="22.08" y2="12"/></svg>`
+};
 
-let shortcuts = [
-  {
-    id: 'contest',
-    name: 'Олимпиада (Контест)',
-    type: 'browser',
-    icon: 'trophy',
-    color: '#f59e0b',
-    url: 'https://contest.yandex.ru',
-    enabled: true
-  },
-  {
-    id: 'pycharm',
-    name: 'PyCharm Community',
-    type: 'app',
-    icon: 'code',
-    color: '#06b6d4',
-    enabled: true
-  },
-  {
-    id: 'pascal',
-    name: 'PascalABC.NET',
-    type: 'app',
-    icon: 'terminal',
-    color: '#3b82f6',
-    enabled: true
-  },
-  {
-    id: 'codeblocks',
-    name: 'Code::Blocks (C++)',
-    type: 'app',
-    icon: 'cpu',
-    color: '#10b981',
-    enabled: true
-  },
-  {
-    id: 'vscode',
-    name: 'VS Code',
-    type: 'app',
-    icon: 'file-code',
-    color: '#6366f1',
-    enabled: true
-  },
-  {
-    id: 'idle',
-    name: 'Python IDLE',
-    type: 'app',
-    icon: 'hash',
-    color: '#eab308',
-    enabled: true
-  },
-  {
-    id: 'calc',
-    name: 'Калькулятор',
-    type: 'app',
-    icon: 'calculator',
-    color: '#8b5cf6',
-    enabled: true
-  },
-  {
-    id: 'notepad',
-    name: 'Блокнот',
-    type: 'app',
-    icon: 'file-text',
-    color: '#64748b',
-    enabled: true
-  }
-];
+function getIcon(iconType) {
+  if (iconType === 'trophy') return ICONS.trophy;
+  if (iconType === 'terminal') return ICONS.terminal;
+  if (iconType === 'calculator') return ICONS.calculator;
+  if (iconType === 'file-text' || iconType === 'file-code') return ICONS.file;
+  if (iconType === 'cpu') return ICONS.cpu;
+  if (iconType === 'code' || iconType === 'hash') return ICONS.code;
+  return ICONS.cube;
+}
 
-// Clock tick
+// Clock
 function updateClock() {
   const now = new Date();
-  systemClockEl.textContent = now.toLocaleTimeString('ru-RU');
+  systemClock.textContent = now.toLocaleTimeString('ru-RU');
 }
 setInterval(updateClock, 1000);
 updateClock();
 
-// Format time
+// Format Seconds
 function formatTime(totalSeconds) {
   if (totalSeconds < 0) totalSeconds = 0;
   const h = Math.floor(totalSeconds / 3600);
@@ -117,29 +59,37 @@ function formatTime(totalSeconds) {
   return [h, m, s].map(v => v.toString().padStart(2, '0')).join(':');
 }
 
-// Render Shortcuts Grid
-function renderShortcuts() {
-  const activeShortcuts = shortcuts.filter(s => s.enabled);
-  shortcutsGridEl.innerHTML = activeShortcuts.map(s => {
+// Render Available Shortcuts
+function renderShortcuts(shortcuts) {
+  if (!shortcuts || shortcuts.length === 0) {
+    shortcutsGrid.innerHTML = `
+      <div style="grid-column: 1 / -1; text-align: center; color: #525252; padding: 40px; font-size: 13px;">
+        Нет доступных программ на данной станции.
+      </div>
+    `;
+    return;
+  }
+
+  shortcutsGrid.innerHTML = shortcuts.map(s => {
     const isContest = s.id === 'contest';
     const featuredClass = isContest ? 'featured' : '';
-    const desc = isContest ? 'Тестирующая система' : (s.type === 'browser' ? 'Веб-ресурс' : 'Среда разработки');
+    const desc = isContest ? 'Тестирующая система' : 'Среда разработки';
 
     return `
-      <div class="shortcut-tile ${featuredClass}" onclick="launchShortcut('${s.id}')">
-        <div class="tile-icon" style="background: ${s.color || '#3b82f6'};">
-          <i class="fa-solid fa-${s.icon || 'cube'}"></i>
+      <div class="app-card ${featuredClass}" onclick="launchApp('${s.id}')">
+        <div class="app-icon">
+          ${getIcon(s.icon || (isContest ? 'trophy' : 'code'))}
         </div>
-        <div>
-          <div class="tile-title">${escapeHtml(s.name)}</div>
-          <div class="tile-desc">${desc}</div>
+        <div class="app-meta">
+          <div class="app-name">${escapeHtml(s.name)}</div>
+          <div class="app-desc">${desc}</div>
         </div>
       </div>
     `;
   }).join('');
 }
 
-window.launchShortcut = async function(id) {
+window.launchApp = async function(id) {
   const res = await ipcRenderer.invoke('launch-app', id);
   if (!res.success && res.message) {
     alert(res.message);
@@ -155,55 +105,46 @@ function escapeHtml(text) {
     .replace(/"/g, '&quot;');
 }
 
-// IPC from Main Process
-ipcRenderer.on('server-status', (event, data) => {
-  if (data.connected) {
-    netStatusEl.innerHTML = `<i class="fa-solid fa-circle text-success"></i> В сети с сервером учителя (${data.serverUrl})`;
-  } else {
-    netStatusEl.innerHTML = `<i class="fa-solid fa-circle text-danger"></i> Офлайн (Поиск учителя...)`;
-  }
-});
-
+// IPC Handlers
 ipcRenderer.on('config-update', (event, config) => {
-  if (config.shortcuts && Array.isArray(config.shortcuts)) {
-    shortcuts = config.shortcuts;
-    renderShortcuts();
+  if (config.shortcuts) {
+    renderShortcuts(config.shortcuts);
   }
 });
 
 ipcRenderer.on('exam-update', (event, exam) => {
   if (exam.status === 'running') {
-    timerDigitsEl.textContent = formatTime(exam.remainingSeconds);
-    timerBadgeEl.className = 'timer-badge badge-active';
-    timerBadgeEl.textContent = 'Идет олимпиада';
+    timerDigits.textContent = formatTime(exam.remainingSeconds);
+    timerLabel.textContent = 'Идет тур';
+    timerDot.classList.add('active');
     screenLockerOverlay.classList.remove('active');
   } else if (exam.status === 'paused') {
-    timerBadgeEl.className = 'timer-badge badge-paused';
-    timerBadgeEl.textContent = 'На паузе';
+    timerLabel.textContent = 'Пауза';
+    timerDot.classList.remove('active');
   } else {
-    timerDigitsEl.textContent = '--:--:--';
-    timerBadgeEl.className = 'timer-badge badge-waiting';
-    timerBadgeEl.textContent = 'Ожидание старта';
+    timerDigits.textContent = '--:--:--';
+    timerLabel.textContent = 'Ожидание';
+    timerDot.classList.remove('active');
   }
 });
 
 ipcRenderer.on('exam-tick', (event, tick) => {
-  timerDigitsEl.textContent = formatTime(tick.remainingSeconds);
+  timerDigits.textContent = formatTime(tick.remainingSeconds);
   if (tick.status === 'running') {
-    timerBadgeEl.className = 'timer-badge badge-active';
-    timerBadgeEl.textContent = 'Идет олимпиада';
+    timerLabel.textContent = 'Идет тур';
+    timerDot.classList.add('active');
   }
 });
 
 ipcRenderer.on('exam-ended', () => {
-  timerBadgeEl.className = 'timer-badge badge-waiting';
-  timerBadgeEl.textContent = 'Олимпиада завершена';
-  lockerReasonEl.textContent = 'Время тура истекло! Ожидайте подведения итогов.';
+  timerLabel.textContent = 'Завершен';
+  timerDot.classList.remove('active');
+  lockerReason.textContent = 'Время тура истекло.';
   screenLockerOverlay.classList.add('active');
 });
 
 ipcRenderer.on('client-locked', (event, data) => {
-  lockerReasonEl.textContent = data?.reason || 'Ожидайте указаний учителя.';
+  lockerReason.textContent = data?.reason || 'Ожидайте указаний преподавателя.';
   screenLockerOverlay.classList.add('active');
 });
 
@@ -214,31 +155,26 @@ ipcRenderer.on('client-unlocked', () => {
 ipcRenderer.on('broadcast-message', (event, text) => {
   broadcastText.textContent = text;
   broadcastBanner.classList.add('active');
-  // Auto-hide after 15 seconds
-  setTimeout(() => {
-    broadcastBanner.classList.remove('active');
-  }, 15000);
+  setTimeout(() => broadcastBanner.classList.remove('active'), 12000);
 });
 
 btnCloseBanner.addEventListener('click', () => {
   broadcastBanner.classList.remove('active');
 });
 
-ipcRenderer.on('security-violation', (event, violation) => {
-  violationMsg.textContent = `Обнаружен запуск неразрешенного приложения: "${violation.processName}". Процесс был немедленно принудительно закрыт. Учитель уведомлен о нарушении!`;
-  violationModal.classList.add('active');
-});
-
-btnAckViolation.addEventListener('click', () => {
-  violationModal.classList.remove('active');
-});
-
-// Master Unlock
-btnUnlockPrompt.addEventListener('click', () => {
+// Secret Teacher Unlock Dialog (Ctrl + Alt + Shift + L)
+function openSecretUnlock() {
   unlockPasswordInput.value = '';
-  unlockErrorEl.style.display = 'none';
+  unlockError.style.display = 'none';
   unlockModal.classList.add('active');
   unlockPasswordInput.focus();
+}
+
+window.addEventListener('keydown', (e) => {
+  if (e.ctrlKey && e.altKey && e.shiftKey && (e.key === 'L' || e.key === 'l' || e.key === 'д' || e.key === 'Д')) {
+    e.preventDefault();
+    openSecretUnlock();
+  }
 });
 
 btnCancelUnlock.addEventListener('click', () => {
@@ -250,26 +186,19 @@ btnConfirmUnlock.addEventListener('click', async () => {
   const res = await ipcRenderer.invoke('verify-unlock', pwd);
   if (res.success) {
     unlockModal.classList.remove('active');
-    alert('ПК успешно разблокирован! Нажмите OK для выхода из полноэкранного режима.');
   } else {
-    unlockErrorEl.style.display = 'block';
+    unlockError.style.display = 'block';
   }
 });
 
 unlockPasswordInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') {
-    btnConfirmUnlock.click();
-  } else if (e.key === 'Escape') {
-    btnCancelUnlock.click();
-  }
+  if (e.key === 'Enter') btnConfirmUnlock.click();
+  if (e.key === 'Escape') btnCancelUnlock.click();
 });
 
-// Secret Teacher Hotkey (Ctrl + Alt + Shift + L)
-window.addEventListener('keydown', (e) => {
-  if (e.ctrlKey && e.altKey && e.shiftKey && (e.key === 'L' || e.key === 'l' || e.key === 'д' || e.key === 'Д')) {
-    btnUnlockPrompt.click();
+// Initial config fetch
+ipcRenderer.invoke('get-config').then(cfg => {
+  if (cfg && cfg.shortcuts) {
+    renderShortcuts(cfg.shortcuts);
   }
 });
-
-// Initial Render
-renderShortcuts();

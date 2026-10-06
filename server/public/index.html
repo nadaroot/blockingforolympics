@@ -2,233 +2,180 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LOKED Admin — Панель управления олимпиадой</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>LOKED Admin</title>
   <link rel="stylesheet" href="style.css">
-  <link rel="stylesheet" href="vendor/font-awesome/css/all.min.css">
   <script src="/socket.io/socket.io.js"></script>
 </head>
 <body>
-  <div class="app-layout">
-    <!-- Top Header -->
-    <header class="navbar">
-      <div class="nav-brand">
-        <div class="logo-badge">
-          <i class="fa-solid fa-shield-halved"></i>
-        </div>
-        <div class="brand-text">
-          <h1>LOKED <span class="tag">ADMIN</span></h1>
-          <p class="subtitle">Управление компьютерами олимпиады</p>
-        </div>
+  <div class="admin-app">
+    <!-- Clean Minimalist Header -->
+    <header class="top-nav">
+      <div class="nav-left">
+        <span class="nav-brand">LOKED</span>
+        <span class="nav-tag">ADMIN</span>
       </div>
 
-      <!-- Exam Timer Display -->
-      <div class="timer-widget" id="timerWidget">
-        <div class="timer-label"><i class="fa-regular fa-clock"></i> Время олимпиады</div>
-        <div class="timer-display" id="timerValue">02:00:00</div>
-        <div class="timer-status badge badge-idle" id="timerStatus">Не начата</div>
+      <!-- Sync Exam Timer Display -->
+      <div class="timer-pill" id="timerWidget">
+        <span class="timer-dot" id="timerDot"></span>
+        <span class="timer-val" id="timerValue">02:00:00</span>
+        <span class="timer-state" id="timerStatus">Ожидание</span>
       </div>
 
-      <!-- Quick Action Toolbar -->
+      <!-- Top Primary Action -->
       <div class="nav-actions">
-        <button class="btn btn-primary" id="btnStartExam" title="Запустить отсчет и перевести ПК в режим олимпиады">
-          <i class="fa-solid fa-play"></i> Начать олимпиаду
+        <button class="btn btn-primary" id="btnStartExam">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          <span class="btn-text">Старт олимпиады</span>
         </button>
-        <button class="btn btn-warning" id="btnPauseExam" style="display:none;" title="Приостановить таймер">
-          <i class="fa-solid fa-pause"></i> Пауза
+        <button class="btn btn-secondary" id="btnPauseExam" style="display:none;">
+          <span class="btn-text">Пауза</span>
         </button>
-        <button class="btn btn-danger" id="btnStopExam" style="display:none;" title="Завершить олимпиаду">
-          <i class="fa-solid fa-stop"></i> Завершить
-        </button>
-
-        <div class="divider-vertical"></div>
-
-        <button class="btn btn-outline-danger" id="btnLockAll" title="Экстренно заблокировать все ПК">
-          <i class="fa-solid fa-lock"></i> Заблокировать все
-        </button>
-        <button class="btn btn-outline-success" id="btnUnlockAll" title="Разблокировать все ПК">
-          <i class="fa-solid fa-lock-open"></i> Разблокировать
+        <button class="btn btn-danger" id="btnStopExam" style="display:none;">
+          <span class="btn-text">Завершить</span>
         </button>
       </div>
     </header>
 
-    <!-- Navigation Tabs -->
-    <div class="tab-bar">
-      <button class="tab-btn active" data-tab="computers">
-        <i class="fa-solid fa-desktop"></i> Компьютеры (<span id="clientsCount">0</span>)
+    <!-- Quick Emergency Bar (Mobile Friendly) -->
+    <div class="quick-bar">
+      <button class="btn-sm btn-outline" id="btnLockAll">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        Заблокировать все ПК
       </button>
-      <button class="tab-btn" data-tab="config">
-        <i class="fa-solid fa-sliders"></i> Настройки и Ярлыки
-      </button>
-      <button class="tab-btn" data-tab="broadcast">
-        <i class="fa-solid fa-bullhorn"></i> Сообщения
-      </button>
-      <button class="tab-btn" data-tab="logs">
-        <i class="fa-solid fa-list-check"></i> Журнал нарушений (<span id="violationsCount">0</span>)
+      <button class="btn-sm btn-outline" id="btnUnlockAll">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
+        Разблокировать все
       </button>
     </div>
 
-    <!-- Main Content Area -->
-    <main class="content-container">
+    <!-- Segmented Navigation Tabs (Scrollable on mobile) -->
+    <nav class="tabs-nav">
+      <button class="tab-item active" data-tab="computers">
+        Компьютеры (<span id="clientsCount">0</span>)
+      </button>
+      <button class="tab-item" data-tab="config">
+        Настройки олимпиады
+      </button>
+      <button class="tab-item" data-tab="broadcast">
+        Объявления
+      </button>
+      <button class="tab-item" data-tab="logs">
+        Журнал (<span id="violationsCount">0</span>)
+      </button>
+    </nav>
 
-      <!-- TAB 1: Computers Grid -->
+    <!-- Main Content Area -->
+    <main class="main-body">
+
+      <!-- TAB 1: Computers List / Grid -->
       <section id="tab-computers" class="tab-pane active">
-        <div class="section-toolbar">
-          <div class="search-box">
-            <i class="fa-solid fa-magnifying-glass"></i>
-            <input type="text" id="filterInput" placeholder="Поиск по имени ПК или IP...">
-          </div>
-          <div class="stats-summary">
-            <span class="stat-pill stat-online"><i class="fa-solid fa-circle"></i> Всего в сети: <b id="statOnline">0</b></span>
-            <span class="stat-pill stat-exam"><i class="fa-solid fa-graduation-cap"></i> В олимпиаде: <b id="statExam">0</b></span>
-            <span class="stat-pill stat-danger"><i class="fa-solid fa-triangle-exclamation"></i> Нарушений: <b id="statViolations">0</b></span>
-          </div>
+        <div class="pane-header">
+          <input type="text" id="filterInput" class="search-input" placeholder="Поиск по имени или IP...">
+          <div class="stat-count">Онлайн: <b id="statOnline">0</b></div>
         </div>
 
-        <div class="computers-grid" id="computersGrid">
+        <div class="cards-grid" id="computersGrid">
           <div class="empty-state">
-            <i class="fa-solid fa-network-wired"></i>
-            <h3>Ожидание подключения компьютеров учеников...</h3>
-            <p>Запустите клиентское приложение LOKED на компьютерах в классе. Они появятся здесь автоматически.</p>
+            <p>Ожидание подключения компьютеров учеников...</p>
+            <small>Запустите лаунчер на клиентских ПК в классе</small>
           </div>
         </div>
       </section>
 
       <!-- TAB 2: Config & Shortcuts -->
       <section id="tab-config" class="tab-pane">
-        <div class="config-grid">
-          <!-- Left Column: Contest & Security -->
-          <div class="card">
-            <div class="card-header">
-              <h3><i class="fa-solid fa-globe"></i> Настройки Контеста и Браузера</h3>
+        <div class="config-layout">
+          <div class="config-section">
+            <h3>Параметры тура</h3>
+
+            <div class="field">
+              <label>Ссылка на олимпиаду (URL для браузера):</label>
+              <input type="url" id="cfgContestUrl" class="text-input" placeholder="https://contest.yandex.ru/contest/12345/enter">
             </div>
-            <div class="card-body">
-              <div class="form-group">
-                <label>Ссылка на олимпиаду (URL для кнопки на рабочем столе):</label>
-                <div class="input-with-icon">
-                  <i class="fa-solid fa-link"></i>
-                  <input type="url" id="cfgContestUrl" class="form-control" placeholder="https://contest.yandex.ru/contest/12345/enter">
-                </div>
-                <small class="form-hint">При клике на ярлык откроется чистый безопасный Chromium без поиска и адресной строки.</small>
-              </div>
 
-              <div class="form-group">
-                <label>Белый список доменов (разрешенные сайты через запятую):</label>
-                <textarea id="cfgAllowedDomains" class="form-control" rows="3" placeholder="contest.yandex.ru, yandex.ru, codeforces.com, informatics.msk.ru"></textarea>
-                <small class="form-hint">Попытка перехода на любые другие сайты (поисковики, соцсети, гитхаб) будет заблокирована.</small>
-              </div>
+            <div class="field">
+              <label>Белый список доменов (через запятую):</label>
+              <textarea id="cfgAllowedDomains" class="text-input" rows="2" placeholder="contest.yandex.ru, yandex.ru, codeforces.com"></textarea>
+            </div>
 
-              <div class="form-group">
-                <label>Длительность олимпиады (в минутах):</label>
-                <input type="number" id="cfgDurationMinutes" class="form-control" value="120" min="5" max="600">
+            <div class="field-row">
+              <div class="field">
+                <label>Длительность (мин):</label>
+                <input type="number" id="cfgDurationMinutes" class="text-input" value="120" min="5" max="600">
               </div>
-
-              <div class="form-group">
-                <label>Мастер-пароль разблокировки (на клиентских ПК):</label>
-                <input type="password" id="cfgMasterPassword" class="form-control" placeholder="admin">
-                <small class="form-hint">Пароль для экстренного выхода из полноэкранного режима прямо за компьютером ученика.</small>
+              <div class="field">
+                <label>Мастер-пароль ПК:</label>
+                <input type="password" id="cfgMasterPassword" class="text-input" value="admin">
               </div>
             </div>
           </div>
 
-          <!-- Right Column: Shortcuts Whitelist -->
-          <div class="card">
-            <div class="card-header">
-              <h3><i class="fa-solid fa-layer-group"></i> Ярлыки на Рабочем столе ученика</h3>
-            </div>
-            <div class="card-body">
-              <p class="section-intro">Отметьте программы, которые будут доступны ученику на олимпиаде:</p>
-              
-              <div class="shortcuts-list" id="shortcutsListContainer">
-                <!-- Populated dynamically via JS -->
-              </div>
+          <div class="config-section">
+            <h3>Разрешенные программы</h3>
+            <p class="section-sub">Программы отображаются на станциях только если они реально установлены на компьютере.</p>
+            <div class="shortcuts-group" id="shortcutsListContainer"></div>
 
-              <hr class="card-divider">
-
-              <!-- Add custom shortcut -->
-              <h4><i class="fa-solid fa-plus-circle"></i> Добавить свой ярлык</h4>
-              <div class="add-shortcut-form">
-                <div class="row">
-                  <input type="text" id="newShortcutName" class="form-control" placeholder="Название (напр. Free Pascal)">
-                  <input type="text" id="newShortcutCmd" class="form-control" placeholder="Команда / Exe (напр. fp.exe)">
-                </div>
-                <button type="button" class="btn btn-secondary" id="btnAddCustomShortcut">
-                  <i class="fa-solid fa-plus"></i> Добавить программу
-                </button>
-              </div>
+            <div class="field-add">
+              <input type="text" id="newShortcutName" class="text-input" placeholder="Название (напр. Free Pascal)">
+              <input type="text" id="newShortcutCmd" class="text-input" placeholder="Команда/exe (напр. fp.exe)">
+              <button class="btn btn-secondary btn-full" id="btnAddCustomShortcut">+ Добавить программу</button>
             </div>
           </div>
         </div>
 
-        <div class="save-bar">
-          <button class="btn btn-primary btn-lg" id="btnSaveConfig">
-            <i class="fa-solid fa-cloud-arrow-up"></i> Сохранить и применить на всех ПК
-          </button>
+        <div class="action-footer">
+          <button class="btn btn-primary btn-full" id="btnSaveConfig">Сохранить и применить</button>
         </div>
       </section>
 
-      <!-- TAB 3: Broadcast Messages -->
+      <!-- TAB 3: Broadcast -->
       <section id="tab-broadcast" class="tab-pane">
-        <div class="card">
-          <div class="card-header">
-            <h3><i class="fa-solid fa-bullhorn"></i> Отправить объявление на экраны всех учеников</h3>
+        <div class="config-section">
+          <h3>Отправить сообщение на все ПК</h3>
+          <p class="section-sub">Текст появится в аккуратном уведомлении поверх экрана каждого ученика.</p>
+          <textarea id="broadcastInput" class="text-input" rows="3" placeholder="Введите текст объявления..."></textarea>
+          
+          <div class="quick-chips">
+            <button class="chip" data-msg="Тур начался. Всем успехов!">Тур начался</button>
+            <button class="chip" data-msg="До конца тура осталось 30 минут.">Осталось 30 мин</button>
+            <button class="chip" data-msg="До конца тура осталось 5 минут!">Осталось 5 мин</button>
+            <button class="chip" data-msg="Тур завершен! Просьба прекратить ввод текста.">Тур завершен</button>
           </div>
-          <div class="card-body">
-            <p>Сообщение появится в виде заметного баннера поверх всех окон на каждом компьютере олимпиадника.</p>
-            <div class="form-group">
-              <textarea id="broadcastInput" class="form-control" rows="3" placeholder="Например: До конца тура осталось 15 минут. Не забудьте сохранить и отправить решения!"></textarea>
-            </div>
-            <div class="quick-messages">
-              <button class="chip" data-msg="Внимание! Тур начался. Удачи всем участникам!">🚀 Тур начался</button>
-              <button class="chip" data-msg="До конца тура осталось 30 минут.">⏳ Осталось 30 минут</button>
-              <button class="chip" data-msg="До конца тура осталось 5 минут. Проверьте отправленные задачи!">⚠️ Осталось 5 минут</button>
-              <button class="chip" data-msg="Тур завершен! Просьба прекратить ввод текста и оставаться на местах.">🛑 Тур завершен</button>
-            </div>
-            <button class="btn btn-primary" id="btnSendBroadcast">
-              <i class="fa-solid fa-paper-plane"></i> Отправить объявление
-            </button>
-          </div>
+
+          <button class="btn btn-primary btn-full" id="btnSendBroadcast">Отправить объявление</button>
         </div>
       </section>
 
-      <!-- TAB 4: Logs & Violations -->
+      <!-- TAB 4: Logs -->
       <section id="tab-logs" class="tab-pane">
-        <div class="card">
-          <div class="card-header logs-header">
-            <h3><i class="fa-solid fa-shield-cat"></i> Журнал безопасности и событий</h3>
-            <button class="btn btn-sm btn-outline-secondary" id="btnClearLogs">
-              <i class="fa-solid fa-trash-can"></i> Очистить
-            </button>
+        <div class="config-section">
+          <div class="logs-bar">
+            <h3>Журнал событий</h3>
+            <button class="btn-text" id="btnClearLogs">Очистить</button>
           </div>
-          <div class="card-body">
-            <div class="logs-feed" id="logsFeed">
-              <!-- Dynamically populated -->
-            </div>
-          </div>
+          <div class="logs-list" id="logsFeed"></div>
         </div>
       </section>
 
     </main>
   </div>
 
-  <!-- Screenshot Modal -->
+  <!-- Minimalist Screenshot Modal -->
   <div class="modal" id="screenshotModal">
-    <div class="modal-backdrop"></div>
-    <div class="modal-dialog">
-      <div class="modal-header">
-        <h3 id="modalPcTitle"><i class="fa-solid fa-display"></i> Экран ПК</h3>
-        <div class="modal-header-actions">
-          <button class="btn btn-sm btn-secondary" id="btnRefreshScreenshot">
-            <i class="fa-solid fa-arrows-rotate"></i> Обновить снимок
-          </button>
-          <button class="btn-close" id="btnCloseModal">&times;</button>
+    <div class="modal-dim"></div>
+    <div class="modal-box">
+      <div class="modal-bar">
+        <span id="modalPcTitle">Экран ПК</span>
+        <div class="modal-bar-right">
+          <button class="btn-sm btn-outline" id="btnRefreshScreenshot">Обновить</button>
+          <button class="modal-close" id="btnCloseModal">&times;</button>
         </div>
       </div>
-      <div class="modal-body">
-        <div class="screenshot-loading" id="screenshotLoading">
-          <i class="fa-solid fa-spinner fa-spin"></i> Получение снимка экрана ученика...
-        </div>
-        <img id="screenshotImage" class="screenshot-img" style="display:none;" alt="Снимок экрана">
+      <div class="modal-view">
+        <div id="screenshotLoading" class="view-loading">Загрузка снимка...</div>
+        <img id="screenshotImage" class="view-img" style="display:none;" alt="Экран">
       </div>
     </div>
   </div>

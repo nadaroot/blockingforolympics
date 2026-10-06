@@ -1,4 +1,5 @@
 @echo off
-title LOKED Student Kiosk
-echo Starting LOKED Student Kiosk Environment...
-npx electron client/src/main.js
+title LOKED Client (Kiosk Fullscreen)
+cd /d "%~dp0"
+echo Starting LOKED Student Kiosk...
+"%~dp0node_modules\electron\dist\electron.exe" "%~dp0client\src\main.js"

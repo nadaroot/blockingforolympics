@@ -3,100 +3,68 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LOKED Desktop</title>
+  <title>LOKED</title>
   <link rel="stylesheet" href="shell.css">
-  <link rel="stylesheet" href="vendor/font-awesome/css/all.min.css">
 </head>
 <body>
-  <div class="desktop-wallpaper"></div>
-
-  <div class="shell-container">
-    <!-- Top Bar -->
-    <header class="shell-topbar">
-      <div class="station-identity">
-        <div class="station-icon"><i class="fa-solid fa-graduation-cap"></i></div>
-        <div>
-          <h2 id="stationName">ПК ОЛИМПИАДНИКА</h2>
-          <span class="station-sub" id="netStatus"><i class="fa-solid fa-circle text-success"></i> Подключение к серверу...</span>
-        </div>
+  <div class="desktop-shell">
+    <!-- Minimalist Header -->
+    <header class="shell-header">
+      <div class="brand">LOKED</div>
+      
+      <!-- Minimalist Exam Timer -->
+      <div class="exam-timer" id="examTimerContainer">
+        <span class="timer-dot" id="timerDot"></span>
+        <span class="timer-digits" id="timerDigits">--:--:--</span>
+        <span class="timer-label" id="timerLabel">Ожидание</span>
       </div>
 
-      <!-- Sync Exam Timer -->
-      <div class="exam-timer-card" id="examTimerCard">
-        <div class="timer-title"><i class="fa-regular fa-clock"></i> Время олимпиады</div>
-        <div class="timer-digits" id="timerDigits">--:--:--</div>
-        <div class="timer-badge badge-waiting" id="timerBadge">Ожидание старта</div>
-      </div>
-
-      <div class="system-clock" id="systemClock">
-        12:00:00
-      </div>
+      <div class="clock" id="systemClock">00:00:00</div>
     </header>
 
-    <!-- Main Desktop Workspace: Grid of Authorized Icons -->
-    <main class="desktop-workspace">
-      <div class="shortcuts-grid" id="shortcutsGrid">
-        <!-- Rendered dynamically -->
+    <!-- Main Workspace: Clean Minimalist App Grid -->
+    <main class="shell-main">
+      <div class="apps-grid" id="shortcutsGrid">
+        <!-- Injected dynamically based on actually installed apps -->
       </div>
     </main>
-
-    <!-- Bottom Taskbar -->
-    <footer class="shell-taskbar">
-      <div class="taskbar-security">
-        <i class="fa-solid fa-shield-halved text-success"></i>
-        <span>Защита активна: рабочий стол изолирован, системные хоткеи и поиск отключены</span>
-      </div>
-
-      <div class="taskbar-actions">
-        <button class="btn-unlock" id="btnUnlockPrompt" title="Только для учителя">
-          <i class="fa-solid fa-key"></i> Разблокировать ПК
-        </button>
-      </div>
-    </footer>
   </div>
 
-  <!-- Teacher Broadcast Banner -->
-  <div class="broadcast-banner" id="broadcastBanner">
-    <div class="broadcast-content">
-      <i class="fa-solid fa-bullhorn broadcast-icon"></i>
-      <div>
-        <h4>Объявление от учителя:</h4>
-        <p id="broadcastText">Сообщение...</p>
-      </div>
+  <!-- Minimalist Announcement Banner -->
+  <div class="toast-banner" id="broadcastBanner">
+    <div class="toast-content">
+      <svg class="toast-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+        <path d="m3 11 18-5v12L3 14v-3z"/>
+        <path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/>
+      </svg>
+      <div class="toast-text" id="broadcastText">Объявление...</div>
     </div>
-    <button class="btn-close-banner" id="btnCloseBanner">&times;</button>
+    <button class="toast-close" id="btnCloseBanner">&times;</button>
   </div>
 
-  <!-- Violation Warning Toast -->
-  <div class="violation-modal" id="violationModal">
-    <div class="violation-dialog">
-      <i class="fa-solid fa-triangle-exclamation violation-icon"></i>
-      <h3>НАРУШЕНИЕ РЕГЛАМЕНТА!</h3>
-      <p id="violationMsg">Обнаружена попытка запуска стороннего приложения. Процесс был немедленно завершен, а отчет передан учителю.</p>
-      <button class="btn-violation-ack" id="btnAckViolation">Понятно, вернуться к работе</button>
+  <!-- Locked Screen Minimal Overlay -->
+  <div class="lock-overlay" id="screenLockerOverlay">
+    <div class="lock-card">
+      <svg class="lock-icon" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#737373" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>
+        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+      </svg>
+      <h2>Экран заблокирован</h2>
+      <p id="lockerReason">Ожидайте указаний преподавателя.</p>
     </div>
   </div>
 
-  <!-- Locked Screen Overlay (When teacher locks all screens) -->
-  <div class="screen-locker-overlay" id="screenLockerOverlay">
-    <div class="locker-content">
-      <i class="fa-solid fa-lock locker-icon"></i>
-      <h2>ЭКРАН ВРЕМЕННО ЗАБЛОКИРОВАН</h2>
-      <p id="lockerReason">Ожидайте указаний учителя или начала тура олимпиады.</p>
-    </div>
-  </div>
-
-  <!-- Master Unlock Password Modal -->
-  <div class="unlock-modal" id="unlockModal">
-    <div class="unlock-dialog">
-      <h3><i class="fa-solid fa-user-shield"></i> Доступ администратора</h3>
-      <p>Введите мастер-пароль для временного выхода из режима олимпиады:</p>
-      <input type="password" id="unlockPasswordInput" class="unlock-input" placeholder="Пароль учителя">
-      <div class="unlock-actions">
-        <button class="btn-cancel" id="btnCancelUnlock">Отмена</button>
-        <button class="btn-confirm" id="btnConfirmUnlock">Разблокировать</button>
+  <!-- Secret Master Unlock Dialog (Triggered ONLY by Ctrl+Alt+Shift+L) -->
+  <div class="modal-overlay" id="unlockModal">
+    <div class="modal-card">
+      <div class="modal-title">Доступ преподавателя</div>
+      <p class="modal-sub">Введите пароль для временного выхода из режима олимпиады:</p>
+      <input type="password" id="unlockPasswordInput" class="modal-input" placeholder="Пароль" autofocus>
+      <div class="modal-actions">
+        <button class="btn-text" id="btnCancelUnlock">Отмена</button>
+        <button class="btn-solid" id="btnConfirmUnlock">Разблокировать</button>
       </div>
-      <div class="unlock-error" id="unlockError" style="display:none;">Неверный мастер-пароль</div>
+      <div class="modal-error" id="unlockError" style="display:none;">Неверный пароль</div>
     </div>
   </div>
 

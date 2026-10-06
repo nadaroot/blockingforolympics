@@ -5,20 +5,19 @@ let currentClients = [];
 let currentExam = { status: 'idle', remainingSeconds: 7200 };
 let currentConfig = { shortcuts: [] };
 let activeModalClientId = null;
-let violationAudioContext = null;
+let audioCtx = null;
 
 // DOM Elements
 const clientsCountEl = document.getElementById('clientsCount');
 const violationsCountEl = document.getElementById('violationsCount');
 const statOnlineEl = document.getElementById('statOnline');
-const statExamEl = document.getElementById('statExam');
-const statViolationsEl = document.getElementById('statViolations');
 const computersGrid = document.getElementById('computersGrid');
 const filterInput = document.getElementById('filterInput');
 
 // Timer DOM
 const timerValueEl = document.getElementById('timerValue');
 const timerStatusEl = document.getElementById('timerStatus');
+const timerDot = document.getElementById('timerDot');
 const btnStartExam = document.getElementById('btnStartExam');
 const btnPauseExam = document.getElementById('btnPauseExam');
 const btnStopExam = document.getElementById('btnStopExam');
@@ -55,25 +54,20 @@ const btnCloseModal = document.getElementById('btnCloseModal');
 // Sound synthesis for alarm
 function playViolationSound() {
   try {
-    if (!violationAudioContext) {
-      violationAudioContext = new (window.AudioContext || window.webkitAudioContext)();
-    }
-    const ctx = violationAudioContext;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(880, ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.3);
-    gain.gain.setValueAtTime(0.3, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.frequency.setValueAtTime(600, audioCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(300, audioCtx.currentTime + 0.2);
+    gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(audioCtx.destination);
     osc.start();
-    osc.stop(ctx.currentTime + 0.3);
+    osc.stop(audioCtx.currentTime + 0.2);
   } catch (_) {}
 }
 
-// Format seconds into HH:MM:SS
 function formatTime(totalSeconds) {
   if (totalSeconds < 0) totalSeconds = 0;
   const h = Math.floor(totalSeconds / 3600);
@@ -82,28 +76,27 @@ function formatTime(totalSeconds) {
   return [h, m, s].map(v => v.toString().padStart(2, '0')).join(':');
 }
 
-// Update Timer UI
 function updateTimerUI(exam) {
   currentExam = exam;
   timerValueEl.textContent = formatTime(exam.remainingSeconds);
 
   if (exam.status === 'running') {
-    timerStatusEl.className = 'timer-status badge badge-running';
-    timerStatusEl.textContent = 'Идет олимпиада';
+    timerStatusEl.textContent = 'Идет тур';
+    if (timerDot) timerDot.classList.add('active');
     btnStartExam.style.display = 'none';
     btnPauseExam.style.display = 'inline-flex';
-    btnPauseExam.innerHTML = '<i class="fa-solid fa-pause"></i> Пауза';
+    btnPauseExam.querySelector('.btn-text').textContent = 'Пауза';
     btnStopExam.style.display = 'inline-flex';
   } else if (exam.status === 'paused') {
-    timerStatusEl.className = 'timer-status badge badge-paused';
-    timerStatusEl.textContent = 'На паузе';
+    timerStatusEl.textContent = 'Пауза';
+    if (timerDot) timerDot.classList.remove('active');
     btnStartExam.style.display = 'none';
     btnPauseExam.style.display = 'inline-flex';
-    btnPauseExam.innerHTML = '<i class="fa-solid fa-play"></i> Продолжить';
+    btnPauseExam.querySelector('.btn-text').textContent = 'Продолжить';
     btnStopExam.style.display = 'inline-flex';
   } else {
-    timerStatusEl.className = 'timer-status badge badge-idle';
-    timerStatusEl.textContent = 'Не начата';
+    timerStatusEl.textContent = 'Ожидание';
+    if (timerDot) timerDot.classList.remove('active');
     btnStartExam.style.display = 'inline-flex';
     btnPauseExam.style.display = 'none';
     btnStopExam.style.display = 'none';
@@ -118,76 +111,63 @@ function renderComputersGrid() {
   );
 
   statOnlineEl.textContent = currentClients.length;
-  statExamEl.textContent = currentClients.filter(c => c.status === 'exam').length;
   const violations = currentClients.filter(c => c.status === 'violation' || (c.violationsCount > 0)).length;
-  statViolationsEl.textContent = violations;
   violationsCountEl.textContent = violations;
   clientsCountEl.textContent = currentClients.length;
 
   if (filtered.length === 0) {
     computersGrid.innerHTML = `
       <div class="empty-state">
-        <i class="fa-solid fa-network-wired"></i>
-        <h3>${currentClients.length === 0 ? 'Ожидание подключения компьютеров учеников...' : 'Компьютеры по запросу не найдены'}</h3>
-        <p>${currentClients.length === 0 ? 'Запустите LOKED на ПК в классе. Они появятся здесь автоматически.' : 'Попробуйте изменить поисковый запрос.'}</p>
+        <p>${currentClients.length === 0 ? 'Ожидание подключения компьютеров учеников...' : 'Компьютеры не найдены'}</p>
+        <small>${currentClients.length === 0 ? 'Запустите лаунчер на станциях' : 'Измените запрос поиска'}</small>
       </div>
     `;
     return;
   }
 
   computersGrid.innerHTML = filtered.map(client => {
-    let statusBadge = '<span class="badge badge-idle">Готов</span>';
-    let cardClass = 'pc-card';
+    let badgeText = 'Готов';
+    let badgeClass = '';
+    let cardClass = 'client-card';
 
     if (client.status === 'exam') {
-      statusBadge = '<span class="badge badge-running">В контесте</span>';
+      badgeText = 'В контесте';
+      badgeClass = 'active';
     } else if (client.status === 'violation') {
-      statusBadge = '<span class="badge badge-danger">Нарушение!</span>';
+      badgeText = 'Нарушение';
+      badgeClass = 'danger';
       cardClass += ' violation';
     } else if (client.isLocked) {
-      statusBadge = '<span class="badge badge-paused">Заблокирован</span>';
+      badgeText = 'Заблокирован';
+      badgeClass = 'locked';
     }
-
-    const lockBtnText = client.isLocked ? 
-      '<i class="fa-solid fa-lock-open"></i> Разблок.' : 
-      '<i class="fa-solid fa-lock"></i> Блок.';
-    const lockBtnClass = client.isLocked ? 'btn-outline-success' : 'btn-outline-danger';
 
     return `
       <div class="${cardClass}" id="pc-${client.id}">
-        <div class="pc-card-header">
-          <div class="pc-title">
-            <div class="pc-icon"><i class="fa-solid fa-desktop"></i></div>
-            <div class="pc-info">
-              <h4>${escapeHtml(client.hostname)}</h4>
-              <p>IP: ${client.ip}</p>
-            </div>
+        <div class="card-top">
+          <div class="card-title">
+            <h4>${escapeHtml(client.hostname)}</h4>
+            <p>${client.ip}</p>
           </div>
-          <div>${statusBadge}</div>
+          <span class="status-badge ${badgeClass}">${badgeText}</span>
         </div>
 
-        <div class="pc-card-body">
-          <div class="pc-meta-row">
-            <span>Активное окно:</span>
-            <span title="${escapeHtml(client.activeApp)}">${escapeHtml(client.activeApp)}</span>
-          </div>
-          <div class="pc-meta-row">
-            <span>Нарушений:</span>
-            <span style="color: ${client.violationsCount > 0 ? '#ef4444' : '#10b981'}; font-weight: bold;">
-              ${client.violationsCount || 0}
-            </span>
+        <div class="card-info">
+          <div class="info-row">
+            <span>Активно:</span>
+            <span>${escapeHtml(client.activeApp)}</span>
           </div>
         </div>
 
-        <div class="pc-card-actions">
+        <div class="card-actions">
           <button class="btn btn-secondary btn-sm" onclick="openScreenshotModal('${client.id}', '${escapeHtml(client.hostname)}')">
-            <i class="fa-solid fa-eye"></i> Экран
+            Экран
           </button>
-          <button class="btn ${lockBtnClass} btn-sm" onclick="toggleClientLock('${client.id}', ${client.isLocked})">
-            ${lockBtnText}
+          <button class="btn btn-secondary btn-sm" onclick="toggleClientLock('${client.id}', ${client.isLocked})">
+            ${client.isLocked ? 'Разблок' : 'Блок'}
           </button>
-          <button class="btn btn-secondary btn-sm" title="Перезагрузить ПК" onclick="rebootClient('${client.id}')">
-            <i class="fa-solid fa-power-off"></i>
+          <button class="btn btn-secondary btn-sm" title="Перезагрузка" onclick="rebootClient('${client.id}')">
+            ⟳
           </button>
         </div>
       </div>
@@ -201,18 +181,12 @@ function renderShortcutsList() {
 
   shortcutsListContainer.innerHTML = currentConfig.shortcuts.map((sc, index) => {
     return `
-      <div class="shortcut-item">
-        <div class="shortcut-info">
-          <i class="fa-solid fa-${sc.icon || 'code'}" style="color: ${sc.color || '#3b82f6'};"></i>
-          <div>
-            <div class="shortcut-name">${escapeHtml(sc.name)}</div>
-            <div class="shortcut-sub">${escapeHtml(sc.cmd || sc.url || 'Приложение')}</div>
-          </div>
+      <div class="sc-row">
+        <div>
+          <div class="sc-name">${escapeHtml(sc.name)}</div>
+          <div class="sc-sub">${escapeHtml(sc.cmd || sc.url || 'Браузер')}</div>
         </div>
-        <label class="switch">
-          <input type="checkbox" ${sc.enabled ? 'checked' : ''} onchange="toggleShortcut(${index}, this.checked)">
-          <span class="slider"></span>
-        </label>
+        <input type="checkbox" ${sc.enabled ? 'checked' : ''} onchange="toggleShortcut(${index}, this.checked)">
       </div>
     `;
   }).join('');
@@ -227,24 +201,23 @@ window.toggleShortcut = function(index, checked) {
 // Render Logs
 function renderLogs(logs) {
   logsFeed.innerHTML = logs.map(log => `
-    <div class="log-entry ${log.type}">
-      <span class="log-time">${log.timestamp}</span>
-      <span class="log-msg">${escapeHtml(log.message)}</span>
+    <div class="log-item ${log.type === 'danger' ? 'danger' : ''}">
+      <span class="log-t">${log.timestamp}</span>
+      <span>${escapeHtml(log.message)}</span>
     </div>
   `).join('');
 }
 
 function appendLog(log) {
   const div = document.createElement('div');
-  div.className = `log-entry ${log.type}`;
+  div.className = `log-item ${log.type === 'danger' ? 'danger' : ''}`;
   div.innerHTML = `
-    <span class="log-time">${log.timestamp}</span>
-    <span class="log-msg">${escapeHtml(log.message)}</span>
+    <span class="log-t">${log.timestamp}</span>
+    <span>${escapeHtml(log.message)}</span>
   `;
   logsFeed.insertBefore(div, logsFeed.firstChild);
 }
 
-// Helpers
 function escapeHtml(text) {
   if (!text) return '';
   return text.toString()
@@ -255,9 +228,9 @@ function escapeHtml(text) {
 }
 
 // Tab Switching
-document.querySelectorAll('.tab-btn').forEach(btn => {
+document.querySelectorAll('.tab-item').forEach(btn => {
   btn.addEventListener('click', () => {
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-item').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
     btn.classList.add('active');
     const tabId = btn.getAttribute('data-tab');
@@ -269,7 +242,6 @@ filterInput.addEventListener('input', renderComputersGrid);
 
 // Socket.io Events
 socket.on('connect', () => {
-  console.log('Connected to LOKED Server');
   socket.emit('admin:register');
 });
 
@@ -278,7 +250,6 @@ socket.on('admin:init', (data) => {
   currentExam = data.exam;
   currentConfig = data.config;
 
-  // Fill form
   cfgContestUrl.value = currentConfig.contestUrl || '';
   cfgAllowedDomains.value = (currentConfig.allowedDomains || []).join(', ');
   cfgDurationMinutes.value = currentConfig.examDurationMinutes || 120;
@@ -305,7 +276,6 @@ socket.on('exam:tick', (data) => {
 socket.on('exam:ended', () => {
   currentExam.status = 'idle';
   updateTimerUI(currentExam);
-  alert('Время олимпиады подошло к концу!');
 });
 
 socket.on('log:new', (log) => {
@@ -314,7 +284,6 @@ socket.on('log:new', (log) => {
 
 socket.on('alert:violation', (alertData) => {
   playViolationSound();
-  // Highlight or notify
   const pc = currentClients.find(c => c.id === alertData.clientId);
   if (pc) {
     pc.status = 'violation';
@@ -330,7 +299,7 @@ socket.on('admin:screenshot_result', (data) => {
   }
 });
 
-// Admin Button Actions
+// Admin Actions
 btnStartExam.addEventListener('click', () => {
   const mins = parseInt(cfgDurationMinutes.value, 10) || 120;
   if (confirm(`Запустить олимпиаду на ${mins} минут?`)) {
@@ -343,22 +312,19 @@ btnPauseExam.addEventListener('click', () => {
 });
 
 btnStopExam.addEventListener('click', () => {
-  if (confirm('Вы уверены, что хотите завершить олимпиаду для всех участников?')) {
+  if (confirm('Завершить олимпиаду для всех участников?')) {
     socket.emit('admin:stop_exam');
   }
 });
 
 btnLockAll.addEventListener('click', () => {
-  if (confirm('Заблокировать экраны всех компьютеров?')) {
-    socket.emit('admin:lock_all');
-  }
+  socket.emit('admin:lock_all');
 });
 
 btnUnlockAll.addEventListener('click', () => {
   socket.emit('admin:unlock_all');
 });
 
-// Individual client actions
 window.toggleClientLock = function(clientId, isCurrentlyLocked) {
   if (isCurrentlyLocked) {
     socket.emit('admin:unlock_client', { clientId });
@@ -368,7 +334,7 @@ window.toggleClientLock = function(clientId, isCurrentlyLocked) {
 };
 
 window.rebootClient = function(clientId) {
-  if (confirm('Перезагрузить этот компьютер?')) {
+  if (confirm('Перезагрузить ПК?')) {
     socket.emit('admin:reboot_client', { clientId });
   }
 };
@@ -376,9 +342,9 @@ window.rebootClient = function(clientId) {
 // Screenshot Modal
 window.openScreenshotModal = function(clientId, hostname) {
   activeModalClientId = clientId;
-  modalPcTitle.innerHTML = `<i class="fa-solid fa-display"></i> Экран: ${escapeHtml(hostname)}`;
+  modalPcTitle.textContent = hostname;
   screenshotImage.style.display = 'none';
-  screenshotLoading.style.display = 'flex';
+  screenshotLoading.style.display = 'block';
   screenshotModal.classList.add('active');
   socket.emit('admin:request_screenshot', { clientId });
 };
@@ -386,7 +352,7 @@ window.openScreenshotModal = function(clientId, hostname) {
 btnRefreshScreenshot.addEventListener('click', () => {
   if (activeModalClientId) {
     screenshotImage.style.display = 'none';
-    screenshotLoading.style.display = 'flex';
+    screenshotLoading.style.display = 'block';
     socket.emit('admin:request_screenshot', { clientId: activeModalClientId });
   }
 });
@@ -396,7 +362,7 @@ btnCloseModal.addEventListener('click', () => {
   activeModalClientId = null;
 });
 
-document.querySelector('.modal-backdrop').addEventListener('click', () => {
+document.querySelector('.modal-dim').addEventListener('click', () => {
   screenshotModal.classList.remove('active');
   activeModalClientId = null;
 });
@@ -417,23 +383,19 @@ btnSaveConfig.addEventListener('click', () => {
   };
 
   socket.emit('admin:save_config', updatedConfig);
-  alert('Настройки успешно сохранены и отправлены на все компьютеры!');
+  alert('Настройки сохранены');
 });
 
-// Add custom shortcut
 btnAddCustomShortcut.addEventListener('click', () => {
   const name = newShortcutName.value.trim();
   const cmd = newShortcutCmd.value.trim();
-  if (!name || !cmd) {
-    alert('Укажите название и команду запуска (exe)!');
-    return;
-  }
+  if (!name || !cmd) return;
+
   const newSc = {
     id: 'custom_' + Date.now(),
     name,
     type: 'app',
     icon: 'cube',
-    color: '#10b981',
     cmd,
     paths: [cmd],
     enabled: true
@@ -450,7 +412,7 @@ btnSendBroadcast.addEventListener('click', () => {
   if (!msg) return;
   socket.emit('admin:broadcast_message', { message: msg });
   broadcastInput.value = '';
-  alert('Сообщение отправлено!');
+  alert('Сообщение отправлено на все ПК');
 });
 
 document.querySelectorAll('.chip').forEach(chip => {
