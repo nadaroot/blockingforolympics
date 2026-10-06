@@ -1,0 +1,71 @@
+name: Build and Release LOKED
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Release Tag Name (e.g. v1.0.0)'
+        required: false
+        default: 'v1.0.0'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Windows Binaries
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build and Package LOKED
+        run: npm run pack
+
+      - name: Determine Release Tag
+        id: release_tag
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ github.event.inputs.tag_name }}"
+          else
+            TAG="${{ github.ref_name }}"
+          fi
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release_tag.outputs.tag }}
+          name: LOKED ${{ steps.release_tag.outputs.tag }}
+          draft: false
+          prerelease: false
+          generate_release_notes: false
+          body: |
+            ## LOKED — Олимпиадная среда (Релиз ${{ steps.release_tag.outputs.tag }})
+
+            ### Файлы релиза:
+            - **`LOKED-Client.exe`** — автономный запускаемый файл для учеников/участников (распаковывается и запускается в один клик).
+            - **`LOKED-Admin.exe`** — автономный запускаемый файл панели администратора и сервера олимпиады.
+            - **`LOKED-Client-win-x64.zip`** — портативная версия клиента в ZIP-архиве (для флешек и ручной распаковки).
+            - **`LOKED-Admin-win-x64.zip`** — портативная версия панели администратора в ZIP-архиве.
+          files: |
+            dist/releases/LOKED-Client.exe
+            dist/releases/LOKED-Admin.exe
+            dist/releases/LOKED-Client-win-x64.zip
+            dist/releases/LOKED-Admin-win-x64.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
