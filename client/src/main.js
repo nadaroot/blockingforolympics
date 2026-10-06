@@ -90,18 +90,28 @@ function createAllShellWindows() {
   const displays = screen.getAllDisplays();
 
   // 1. Primary Monitor (Interactive Olympiad Desktop)
+  const winConfig = isWindowed ? {
+    width: 1280,
+    height: 800,
+    frame: true,
+    resizable: true,
+    movable: true,
+    fullscreen: false,
+    kiosk: false,
+    alwaysOnTop: false,
+    title: 'LOKED (Оконный режим)'
+  } : {
+    frame: false,
+    fullscreen: true,
+    kiosk: true,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    autoHideMenuBar: true,
+    title: 'LOKED'
+  };
+
   shellWindow = new BrowserWindow({
-    x: isWindowed ? undefined : primaryDisplay.bounds.x,
-    y: isWindowed ? undefined : primaryDisplay.bounds.y,
-    width: isWindowed ? 1280 : primaryDisplay.bounds.width,
-    height: isWindowed ? 800 : primaryDisplay.bounds.height,
-    fullscreen: !isWindowed,
-    kiosk: !isWindowed,
-    alwaysOnTop: !isWindowed && isLocked,
-    frame: isWindowed,
-    resizable: isWindowed,
-    movable: isWindowed,
-    title: 'LOKED',
+    ...winConfig,
     backgroundColor: '#050505',
     webPreferences: {
       nodeIntegration: true,
@@ -112,7 +122,9 @@ function createAllShellWindows() {
   if (isWindowed) {
     shellWindow.center();
   } else {
-    shellWindow.setAlwaysOnTop(true, 'screen-saver');
+    shellWindow.setFullScreen(true);
+    shellWindow.maximize();
+    shellWindow.setAlwaysOnTop(true);
   }
 
   shellWindow.loadFile(path.join(__dirname, 'shell', 'index.html'));
@@ -136,14 +148,12 @@ function createSecondaryWindows(displays, primaryId) {
     const secWin = new BrowserWindow({
       x: display.bounds.x,
       y: display.bounds.y,
-      width: display.bounds.width,
-      height: display.bounds.height,
+      frame: false,
       fullscreen: true,
       kiosk: true,
-      alwaysOnTop: isLocked,
-      frame: false,
-      resizable: false,
-      movable: false,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      autoHideMenuBar: true,
       backgroundColor: '#050505',
       webPreferences: {
         nodeIntegration: false,
@@ -151,7 +161,9 @@ function createSecondaryWindows(displays, primaryId) {
       }
     });
 
-    secWin.setAlwaysOnTop(true, 'screen-saver');
+    secWin.setFullScreen(true);
+    secWin.maximize();
+    secWin.setAlwaysOnTop(true);
     secWin.loadFile(path.join(__dirname, 'shell', 'secondary.html'));
     secondaryWindows.push(secWin);
   }
@@ -183,11 +195,12 @@ function openSafeBrowser(urlToOpen) {
   const { width, height } = primaryDisplay.bounds;
 
   browserWindow = new BrowserWindow({
-    width,
-    height,
-    fullscreen: true,
-    alwaysOnTop: isLocked,
     frame: false,
+    fullscreen: true,
+    kiosk: true,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    autoHideMenuBar: true,
     backgroundColor: '#050505',
     webPreferences: {
       nodeIntegration: false,
@@ -198,13 +211,13 @@ function openSafeBrowser(urlToOpen) {
     }
   });
 
+  browserWindow.setFullScreen(true);
+  browserWindow.maximize();
+  browserWindow.setAlwaysOnTop(true);
+
   browserWindow.loadFile(path.join(__dirname, 'browser', 'browser.html'), {
     query: { initialUrl: targetUrl }
   });
-
-  if (!isWindowed) {
-    browserWindow.setAlwaysOnTop(isLocked, 'screen-saver');
-  }
 
   browserWindow.on('closed', () => {
     browserWindow = null;

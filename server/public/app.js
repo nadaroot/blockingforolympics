@@ -6,13 +6,16 @@ let currentExam = { status: 'idle', remainingSeconds: 7200 };
 let currentConfig = { shortcuts: [] };
 let activeModalClientId = null;
 let audioCtx = null;
+let toastTimeout = null;
 
 // DOM Elements
 const clientsCountEl = document.getElementById('clientsCount');
+const mClientsCountEl = document.getElementById('mClientsCount');
 const violationsCountEl = document.getElementById('violationsCount');
 const statOnlineEl = document.getElementById('statOnline');
 const computersGrid = document.getElementById('computersGrid');
 const filterInput = document.getElementById('filterInput');
+const appToast = document.getElementById('appToast');
 
 // Timer DOM
 const timerValueEl = document.getElementById('timerValue');
@@ -50,8 +53,21 @@ const screenshotImage = document.getElementById('screenshotImage');
 const screenshotLoading = document.getElementById('screenshotLoading');
 const btnRefreshScreenshot = document.getElementById('btnRefreshScreenshot');
 const btnCloseModal = document.getElementById('btnCloseModal');
+const btnBottomCloseModal = document.getElementById('btnBottomCloseModal');
+const modalDim = document.getElementById('modalDim');
 
-// Sound synthesis for alarm
+// In-App Toast
+function showToast(message) {
+  if (!appToast) return;
+  appToast.textContent = message;
+  appToast.classList.add('active');
+  clearTimeout(toastTimeout);
+  toastTimeout = setTimeout(() => {
+    appToast.classList.remove('active');
+  }, 2800);
+}
+
+// Sound Alarm
 function playViolationSound() {
   try {
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -92,7 +108,7 @@ function updateTimerUI(exam) {
     if (timerDot) timerDot.classList.remove('active');
     btnStartExam.style.display = 'none';
     btnPauseExam.style.display = 'inline-flex';
-    btnPauseExam.querySelector('.btn-text').textContent = 'Продолжить';
+    btnPauseExam.querySelector('.btn-text').textContent = 'Старт';
     btnStopExam.style.display = 'inline-flex';
   } else {
     timerStatusEl.textContent = 'Ожидание';
@@ -105,7 +121,7 @@ function updateTimerUI(exam) {
 
 // Render Computers Grid
 function renderComputersGrid() {
-  const query = filterInput.value.toLowerCase().trim();
+  const query = filterInput ? filterInput.value.toLowerCase().trim() : '';
   const filtered = currentClients.filter(c => 
     c.hostname.toLowerCase().includes(query) || c.ip.includes(query)
   );
@@ -114,6 +130,7 @@ function renderComputersGrid() {
   const violations = currentClients.filter(c => c.status === 'violation' || (c.violationsCount > 0)).length;
   violationsCountEl.textContent = violations;
   clientsCountEl.textContent = currentClients.length;
+  if (mClientsCountEl) mClientsCountEl.textContent = currentClients.length;
 
   if (filtered.length === 0) {
     computersGrid.innerHTML = `
@@ -227,18 +244,37 @@ function escapeHtml(text) {
     .replace(/"/g, '&quot;');
 }
 
-// Tab Switching
+// Global Tab Switching (Mobile + Desktop)
+window.switchTab = function(tabId) {
+  // Update desktop tabs
+  document.querySelectorAll('.tab-item').forEach(b => {
+    b.classList.toggle('active', b.getAttribute('data-tab') === tabId);
+  });
+  // Update mobile bottom nav
+  document.querySelectorAll('.m-tab').forEach(b => {
+    b.classList.toggle('active', b.getAttribute('data-tab') === tabId);
+  });
+  // Switch pane
+  document.querySelectorAll('.tab-pane').forEach(p => {
+    p.classList.remove('active');
+  });
+  const targetPane = document.getElementById(`tab-${tabId}`);
+  if (targetPane) {
+    targetPane.classList.add('active');
+  }
+  window.scrollTo({ top: 0, behavior: 'instant' });
+};
+
+// Click handler for desktop tabs
 document.querySelectorAll('.tab-item').forEach(btn => {
   btn.addEventListener('click', () => {
-    document.querySelectorAll('.tab-item').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
-    btn.classList.add('active');
-    const tabId = btn.getAttribute('data-tab');
-    document.getElementById(`tab-${tabId}`).classList.add('active');
+    switchTab(btn.getAttribute('data-tab'));
   });
 });
 
-filterInput.addEventListener('input', renderComputersGrid);
+if (filterInput) {
+  filterInput.addEventListener('input', renderComputersGrid);
+}
 
 // Socket.io Events
 socket.on('connect', () => {
@@ -276,6 +312,7 @@ socket.on('exam:tick', (data) => {
 socket.on('exam:ended', () => {
   currentExam.status = 'idle';
   updateTimerUI(currentExam);
+  showToast('Время тура олимпиады подошло к концу');
 });
 
 socket.on('log:new', (log) => {
@@ -284,6 +321,7 @@ socket.on('log:new', (log) => {
 
 socket.on('alert:violation', (alertData) => {
   playViolationSound();
+  showToast(`Внимание: нарушение на "${alertData.hostname}" (${alertData.processName})`);
   const pc = currentClients.find(c => c.id === alertData.clientId);
   if (pc) {
     pc.status = 'violation';
@@ -302,40 +340,46 @@ socket.on('admin:screenshot_result', (data) => {
 // Admin Actions
 btnStartExam.addEventListener('click', () => {
   const mins = parseInt(cfgDurationMinutes.value, 10) || 120;
-  if (confirm(`Запустить олимпиаду на ${mins} минут?`)) {
-    socket.emit('admin:start_exam', { durationMinutes: mins });
-  }
+  socket.emit('admin:start_exam', { durationMinutes: mins });
+  showToast(`Олимпиада запущена на ${mins} минут`);
 });
 
 btnPauseExam.addEventListener('click', () => {
   socket.emit('admin:pause_exam');
+  showToast('Статус олимпиады изменен');
 });
 
 btnStopExam.addEventListener('click', () => {
   if (confirm('Завершить олимпиаду для всех участников?')) {
     socket.emit('admin:stop_exam');
+    showToast('Олимпиада завершена');
   }
 });
 
 btnLockAll.addEventListener('click', () => {
   socket.emit('admin:lock_all');
+  showToast('Все компьютеры заблокированы');
 });
 
 btnUnlockAll.addEventListener('click', () => {
   socket.emit('admin:unlock_all');
+  showToast('Все компьютеры разблокированы');
 });
 
 window.toggleClientLock = function(clientId, isCurrentlyLocked) {
   if (isCurrentlyLocked) {
     socket.emit('admin:unlock_client', { clientId });
+    showToast('Компьютер разблокирован');
   } else {
     socket.emit('admin:lock_client', { clientId });
+    showToast('Компьютер заблокирован');
   }
 };
 
 window.rebootClient = function(clientId) {
   if (confirm('Перезагрузить ПК?')) {
     socket.emit('admin:reboot_client', { clientId });
+    showToast('Команда перезагрузки отправлена');
   }
 };
 
@@ -357,15 +401,14 @@ btnRefreshScreenshot.addEventListener('click', () => {
   }
 });
 
-btnCloseModal.addEventListener('click', () => {
+function closeScreenshotModal() {
   screenshotModal.classList.remove('active');
   activeModalClientId = null;
-});
+}
 
-document.querySelector('.modal-dim').addEventListener('click', () => {
-  screenshotModal.classList.remove('active');
-  activeModalClientId = null;
-});
+btnCloseModal.addEventListener('click', closeScreenshotModal);
+if (btnBottomCloseModal) btnBottomCloseModal.addEventListener('click', closeScreenshotModal);
+if (modalDim) modalDim.addEventListener('click', closeScreenshotModal);
 
 // Config Save
 btnSaveConfig.addEventListener('click', () => {
@@ -383,7 +426,7 @@ btnSaveConfig.addEventListener('click', () => {
   };
 
   socket.emit('admin:save_config', updatedConfig);
-  alert('Настройки сохранены');
+  showToast('Настройки сохранены и применены на всех ПК');
 });
 
 btnAddCustomShortcut.addEventListener('click', () => {
@@ -404,6 +447,7 @@ btnAddCustomShortcut.addEventListener('click', () => {
   newShortcutName.value = '';
   newShortcutCmd.value = '';
   renderShortcutsList();
+  showToast(`Программа "${name}" добавлена`);
 });
 
 // Broadcast
@@ -412,7 +456,7 @@ btnSendBroadcast.addEventListener('click', () => {
   if (!msg) return;
   socket.emit('admin:broadcast_message', { message: msg });
   broadcastInput.value = '';
-  alert('Сообщение отправлено на все ПК');
+  showToast('Объявление отправлено на все ПК');
 });
 
 document.querySelectorAll('.chip').forEach(chip => {
@@ -423,4 +467,5 @@ document.querySelectorAll('.chip').forEach(chip => {
 
 btnClearLogs.addEventListener('click', () => {
   logsFeed.innerHTML = '';
+  showToast('Журнал очищен');
 });

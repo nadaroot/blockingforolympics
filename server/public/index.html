@@ -9,48 +9,48 @@
 </head>
 <body>
   <div class="admin-app">
-    <!-- Clean Minimalist Header -->
+    <!-- Top Header Bar -->
     <header class="top-nav">
       <div class="nav-left">
         <span class="nav-brand">LOKED</span>
         <span class="nav-tag">ADMIN</span>
       </div>
 
-      <!-- Sync Exam Timer Display -->
+      <!-- Live Sync Timer Pill -->
       <div class="timer-pill" id="timerWidget">
         <span class="timer-dot" id="timerDot"></span>
         <span class="timer-val" id="timerValue">02:00:00</span>
         <span class="timer-state" id="timerStatus">Ожидание</span>
       </div>
 
-      <!-- Top Primary Action -->
+      <!-- Action Buttons -->
       <div class="nav-actions">
         <button class="btn btn-primary" id="btnStartExam">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-          <span class="btn-text">Старт олимпиады</span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          <span class="btn-text">Старт</span>
         </button>
         <button class="btn btn-secondary" id="btnPauseExam" style="display:none;">
           <span class="btn-text">Пауза</span>
         </button>
         <button class="btn btn-danger" id="btnStopExam" style="display:none;">
-          <span class="btn-text">Завершить</span>
+          <span class="btn-text">Стоп</span>
         </button>
       </div>
     </header>
 
-    <!-- Quick Emergency Bar (Mobile Friendly) -->
+    <!-- Quick Emergency Controls -->
     <div class="quick-bar">
       <button class="btn-sm btn-outline" id="btnLockAll">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
         Заблокировать все ПК
       </button>
       <button class="btn-sm btn-outline" id="btnUnlockAll">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
         Разблокировать все
       </button>
     </div>
 
-    <!-- Segmented Navigation Tabs (Scrollable on mobile) -->
+    <!-- Desktop Tabs Nav -->
     <nav class="tabs-nav">
       <button class="tab-item active" data-tab="computers">
         Компьютеры (<span id="clientsCount">0</span>)
@@ -79,19 +79,27 @@
         <div class="cards-grid" id="computersGrid">
           <div class="empty-state">
             <p>Ожидание подключения компьютеров учеников...</p>
-            <small>Запустите лаунчер на клиентских ПК в классе</small>
+            <small>Запустите лаунчер на станциях в классе</small>
           </div>
         </div>
       </section>
 
       <!-- TAB 2: Config & Shortcuts -->
       <section id="tab-config" class="tab-pane">
+        <!-- Prominent Back Button on Mobile -->
+        <div class="back-bar">
+          <button class="btn btn-secondary btn-sm" onclick="switchTab('computers')">
+            ← Назад к компьютерам
+          </button>
+          <span class="back-bar-title">Настройки олимпиады</span>
+        </div>
+
         <div class="config-layout">
           <div class="config-section">
             <h3>Параметры тура</h3>
 
             <div class="field">
-              <label>Ссылка на олимпиаду (URL для браузера):</label>
+              <label>Ссылка на олимпиаду (URL для кнопки на рабочем столе):</label>
               <input type="url" id="cfgContestUrl" class="text-input" placeholder="https://contest.yandex.ru/contest/12345/enter">
             </div>
 
@@ -106,7 +114,7 @@
                 <input type="number" id="cfgDurationMinutes" class="text-input" value="120" min="5" max="600">
               </div>
               <div class="field">
-                <label>Мастер-пароль ПК:</label>
+                <label>Мастер-пароль разблокировки ПК:</label>
                 <input type="password" id="cfgMasterPassword" class="text-input" value="admin">
               </div>
             </div>
@@ -132,9 +140,16 @@
 
       <!-- TAB 3: Broadcast -->
       <section id="tab-broadcast" class="tab-pane">
+        <div class="back-bar">
+          <button class="btn btn-secondary btn-sm" onclick="switchTab('computers')">
+            ← Назад к компьютерам
+          </button>
+          <span class="back-bar-title">Объявления</span>
+        </div>
+
         <div class="config-section">
           <h3>Отправить сообщение на все ПК</h3>
-          <p class="section-sub">Текст появится в аккуратном уведомлении поверх экрана каждого ученика.</p>
+          <p class="section-sub">Текст появится поверх экрана каждого ученика.</p>
           <textarea id="broadcastInput" class="text-input" rows="3" placeholder="Введите текст объявления..."></textarea>
           
           <div class="quick-chips">
@@ -150,6 +165,13 @@
 
       <!-- TAB 4: Logs -->
       <section id="tab-logs" class="tab-pane">
+        <div class="back-bar">
+          <button class="btn btn-secondary btn-sm" onclick="switchTab('computers')">
+            ← Назад к компьютерам
+          </button>
+          <span class="back-bar-title">Журнал безопасности</span>
+        </div>
+
         <div class="config-section">
           <div class="logs-bar">
             <h3>Журнал событий</h3>
@@ -160,11 +182,31 @@
       </section>
 
     </main>
+
+    <!-- Mobile Sticky Bottom Navigation (Always accessible with thumb) -->
+    <nav class="mobile-bottom-nav">
+      <button class="m-tab active" data-tab="computers" onclick="switchTab('computers')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></svg>
+        <span>ПК (<b id="mClientsCount">0</b>)</span>
+      </button>
+      <button class="m-tab" data-tab="config" onclick="switchTab('config')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+        <span>Настройки</span>
+      </button>
+      <button class="m-tab" data-tab="broadcast" onclick="switchTab('broadcast')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg>
+        <span>Объявление</span>
+      </button>
+      <button class="m-tab" data-tab="logs" onclick="switchTab('logs')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        <span>Журнал</span>
+      </button>
+    </nav>
   </div>
 
-  <!-- Minimalist Screenshot Modal -->
+  <!-- Screenshot Modal (Responsive & Mobile Easy Close) -->
   <div class="modal" id="screenshotModal">
-    <div class="modal-dim"></div>
+    <div class="modal-dim" id="modalDim"></div>
     <div class="modal-box">
       <div class="modal-bar">
         <span id="modalPcTitle">Экран ПК</span>
@@ -174,11 +216,17 @@
         </div>
       </div>
       <div class="modal-view">
-        <div id="screenshotLoading" class="view-loading">Загрузка снимка...</div>
+        <div id="screenshotLoading" class="view-loading">Получение снимка экрана...</div>
         <img id="screenshotImage" class="view-img" style="display:none;" alt="Экран">
+      </div>
+      <div class="modal-bottom-bar">
+        <button class="btn btn-secondary btn-full" id="btnBottomCloseModal">✕ Закрыть просмотр</button>
       </div>
     </div>
   </div>
+
+  <!-- In-App Non-Blocking Toast Notification -->
+  <div class="app-toast" id="appToast"></div>
 
   <script src="app.js"></script>
 </body>
