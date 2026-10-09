@@ -9,30 +9,51 @@
 <body>
   <div class="desktop-shell" id="desktopShell">
     
-    <!-- Top macOS-style Menu Bar -->
-    <header class="mac-menubar">
+    <!-- Top Menu Bar -->
+    <header class="mac-menubar" id="macMenubar">
       <div class="menubar-left">
-        <span class="menubar-apple" title="LOKED"></span>
-        <span class="menubar-item brand">LOKED</span>
-        <span class="menubar-item" id="menuWorkspaceBtn">Рабочий стол</span>
-        <span class="menubar-item" onclick="openWindow('browser')">Контест</span>
-        <span class="menubar-item" onclick="openWindow('editor')">Редактор</span>
-        <span class="menubar-item" onclick="openWindow('files')">Файлы</span>
-        <span class="menubar-item" onclick="openWindow('calc')">Калькулятор</span>
+        <!-- LOKED mark (no Apple branding) -->
+        <div class="mb-menu-wrap">
+          <button class="mb-item brand-mark" id="mbBrandTrigger" title="LOKED">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.4" fill="currentColor" stroke="none"/></svg>
+          </button>
+          <div class="mb-dropdown" id="mbBrandMenu"></div>
+        </div>
+
+        <!-- Active application name -->
+        <button class="mb-item app-name" id="mbAppName">Рабочий стол</button>
+
+        <!-- Dropdown menus are rendered by shell.js -->
+        <div id="mbMenus" style="display:flex;align-items:center;"></div>
       </div>
 
-      <!-- Minimalist Exam Timer -->
-      <div class="exam-timer" id="examTimerContainer">
-        <span class="timer-dot" id="timerDot"></span>
-        <span class="timer-digits" id="timerDigits">--:--:--</span>
-        <span class="timer-label" id="timerLabel">Ожидание</span>
-      </div>
+      <div class="menubar-center"></div>
 
       <div class="menubar-right">
+        <div class="exam-timer" id="examTimerContainer">
+          <span class="timer-dot" id="timerDot"></span>
+          <span class="timer-digits" id="timerDigits">--:--:--</span>
+          <span class="timer-label" id="timerLabel">Ожидание</span>
+        </div>
+
         <span class="menubar-status" id="workspaceStatusText">LOKED_Workspace</span>
-        <div class="clock" id="systemClock">00:00:00</div>
+
+        <button class="mb-right-item" id="mbClock" title="Дата и время">--:--</button>
       </div>
     </header>
+
+    <!-- Hot zone: наведение на эту полосу показывает Touch Bar -->
+    <div class="touchbar-hotzone" id="touchbarHotzone" title=""></div>
+
+    <!-- macOS-style Touch Bar (hidden by default, appears on hover) -->
+    <section class="touchbar" id="touchBar">
+      <div class="touchbar-inner">
+        <div class="touchbar-group" id="touchBarGroup"></div>
+      </div>
+      <button class="touchbar-toggle" id="btnTouchBarToggle" title="Свернуть Touch Bar">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+    </section>
 
     <!-- Real Desktop Workspace Surface -->
     <main class="desktop-surface" id="desktopSurface">
@@ -143,7 +164,7 @@
       </div>
 
       <!-- WINDOW 4: Calculator Window -->
-      <div class="mac-window calc-window" id="winCalc" style="display:none; width: 320px; height: 440px; top: 140px; left: 260px;">
+      <div class="mac-window calc-window no-fullscreen" id="winCalc" style="display:none; width: 304px; height: 416px; top: 132px; left: 300px;">
         <div class="mac-window-header" id="winCalcHeader">
           <div class="mac-window-controls">
             <button class="mac-btn close" onclick="closeWindow('calc')" title="Закрыть"></button>
@@ -197,27 +218,55 @@
     </section>
   </div>
 
-  <!-- Right-Click Desktop Context Menu -->
+  <!-- Right-Click Desktop Context Menu (Windows-style) -->
   <div class="context-menu" id="desktopContextMenu" style="display:none;">
-    <div class="context-item" onclick="createDesktopItem('python')">
-      <span class="context-icon">🐍</span> Новый файл Python (.py)
-    </div>
-    <div class="context-item" onclick="createDesktopItem('cpp')">
-      <span class="context-icon">⚡</span> Новый файл C++ (.cpp)
-    </div>
-    <div class="context-item" onclick="createDesktopItem('pascal')">
-      <span class="context-icon">📘</span> Новый файл Pascal (.pas)
-    </div>
-    <div class="context-item" onclick="createDesktopItem('text')">
-      <span class="context-icon">📄</span> Новый текстовый файл (.txt)
-    </div>
-    <div class="context-separator"></div>
-    <div class="context-item" onclick="createDesktopItem('folder')">
-      <span class="context-icon">📁</span> Новая папка
-    </div>
-    <div class="context-separator"></div>
     <div class="context-item" onclick="openWindow('browser')">
       <span class="context-icon">🏆</span> Открыть Яндекс Контест
+    </div>
+    <div class="context-separator"></div>
+
+    <div class="context-item has-submenu" id="desktopCreateItem">
+      <span class="context-icon">➕</span> Создать
+      <span class="context-arrow">▶</span>
+      <div class="context-submenu" id="desktopCreateSubmenu">
+        <div class="context-item" onclick="createDesktopItem('folder')">
+          <span class="context-icon">📁</span> Папку
+        </div>
+        <div class="context-separator"></div>
+        <div class="context-item" onclick="createDesktopItem('text')">
+          <span class="context-icon">📄</span> Текстовый документ (.txt)
+        </div>
+        <div class="context-item" onclick="createDesktopItem('python')">
+          <span class="context-icon">🐍</span> Файл Python (.py)
+        </div>
+        <div class="context-item" onclick="createDesktopItem('cpp')">
+          <span class="context-icon">⚡</span> Файл C++ (.cpp)
+        </div>
+        <div class="context-item" onclick="createDesktopItem('c')">
+          <span class="context-icon">⚙️</span> Файл C (.c)
+        </div>
+        <div class="context-item" onclick="createDesktopItem('pascal')">
+          <span class="context-icon">📘</span> Файл Pascal (.pas)
+        </div>
+        <div class="context-item" onclick="createDesktopItem('java')">
+          <span class="context-icon">☕</span> Файл Java (.java)
+        </div>
+        <div class="context-item" onclick="createDesktopItem('csharp')">
+          <span class="context-icon">🎯</span> Файл C# (.cs)
+        </div>
+        <div class="context-separator"></div>
+        <div class="context-item" onclick="createDesktopItem('custom')">
+          <span class="context-icon">✎</span> Файл с любым расширением...
+        </div>
+      </div>
+    </div>
+
+    <div class="context-separator"></div>
+    <div class="context-item" onclick="openWindow('editor')">
+      <span class="context-icon">📝</span> Редактор кода
+    </div>
+    <div class="context-item" onclick="openWindow('files')">
+      <span class="context-icon">📂</span> Мои файлы
     </div>
     <div class="context-item" onclick="refreshDesktopFiles()">
       <span class="context-icon">⟳</span> Обновить рабочий стол

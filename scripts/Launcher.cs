@@ -27,9 +27,37 @@ namespace LokedLauncher
                 string targetExe = Path.Combine(targetDir, exeName);
                 string versionFile = Path.Combine(targetDir, ".version");
 
+                var currentAsm = Assembly.GetExecutingAssembly();
+                long launcherTicks = 0;
+                try
+                {
+                    if (!string.IsNullOrEmpty(currentAsm.Location) && File.Exists(currentAsm.Location))
+                    {
+                        launcherTicks = File.GetLastWriteTimeUtc(currentAsm.Location).Ticks;
+                    }
+                }
+                catch { }
+
                 bool needsExtract = !File.Exists(targetExe) ||
-                                    !File.Exists(versionFile) ||
-                                    File.ReadAllText(versionFile).Trim() != appVersion;
+                                    !File.Exists(versionFile);
+
+                if (!needsExtract)
+                {
+                    try
+                    {
+                        string[] vLines = File.ReadAllLines(versionFile);
+                        string savedVer = vLines.Length > 0 ? vLines[0].Trim() : "";
+                        string savedTicks = vLines.Length > 1 ? vLines[1].Trim() : "";
+                        if (savedVer != appVersion || (launcherTicks > 0 && savedTicks != launcherTicks.ToString()))
+                        {
+                            needsExtract = true;
+                        }
+                    }
+                    catch
+                    {
+                        needsExtract = true;
+                    }
+                }
 
                 if (needsExtract)
                 {
@@ -40,8 +68,7 @@ namespace LokedLauncher
                     Directory.CreateDirectory(targetDir);
 
                     string tempZip = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".zip");
-                    var asm = Assembly.GetExecutingAssembly();
-                    using (var resStream = asm.GetManifestResourceStream("Payload"))
+                    using (var resStream = currentAsm.GetManifestResourceStream("Payload"))
                     {
                         if (resStream == null)
                         {
@@ -55,7 +82,7 @@ namespace LokedLauncher
 
                     ZipFile.ExtractToDirectory(tempZip, targetDir);
                     try { File.Delete(tempZip); } catch { }
-                    File.WriteAllText(versionFile, appVersion);
+                    File.WriteAllText(versionFile, appVersion + "\r\n" + launcherTicks);
                 }
 
                 if (File.Exists(targetExe))

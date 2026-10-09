@@ -7,65 +7,293 @@ on:
   workflow_dispatch:
     inputs:
       tag_name:
-        description: 'Release Tag Name (e.g. v1.0.0)'
+        description: 'Release tag (e.g. v1.0.2). Leave empty = build check only, no release created'
         required: false
-        default: 'v1.0.0'
+        default: ''
+        type: string
+      prerelease:
+        description: 'Mark release as prerelease'
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
+
+# Один и тот же тег не должен собираться дважды одновременно.
+# Разные теги = разные группы, поэтому параллельные релизы не мешают друг другу.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CSC: C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe
+  ELECTRON_CACHE: ${{ github.workspace }}/.electron-cache
 
 jobs:
   build:
     name: Build Windows Binaries
     runs-on: windows-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: pwsh
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Set up Node.js
+      - name: Set up Node.js 20
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: '20'
           cache: 'npm'
+          cache-dependency-path: package-lock.json
 
-      - name: Install dependencies
+      - name: Cache Electron binaries
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.ELECTRON_CACHE }}
+          key: electron-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            electron-${{ runner.os }}-
+
+      - name: Install dependencies (npm ci)
         run: npm ci
 
-      - name: Build and Package LOKED
+      - name: Syntax check (node --check) for every tracked JS file
+        run: |
+          # -c = tracked, -o = untracked (not ignored) -> catches new files that were not git-added yet
+          $files = @(git ls-files -co --exclude-standard '*.js')
+          if ($files.Count -eq 0) { throw 'No .js files found - bad checkout?' }
+          $failed = New-Object System.Collections.Generic.List[string]
+          foreach ($f in $files) {
+            node --check $f
+            if ($LASTEXITCODE -ne 0) { $failed.Add($f) }
+          }
+          Write-Host ("node --check: {0}/{1} files OK" -f ($files.Count - $failed.Count), $files.Count)
+          if ($failed.Count -gt 0) { throw ("Syntax errors in: " + ($failed -join ', ')) }
+
+      - name: Compile native locker (client/native/Locker.cs)
+        run: |
+          if (-not (Test-Path -LiteralPath $env:CSC)) { throw ("csc.exe not found at " + $env:CSC) }
+          New-Item -ItemType Directory -Force -Path 'client\native' | Out-Null
+          & $env:CSC /nologo /target:winexe '/out:client\native\locker.exe' 'client\native\Locker.cs'
+          if ($LASTEXITCODE -ne 0) { throw ("Locker.cs compilation failed, exit code " + $LASTEXITCODE) }
+          $locker = Get-Item -LiteralPath 'client\native\locker.exe'
+          Write-Host ("locker.exe compiled: {0} bytes" -f $locker.Length)
+          if ($locker.Length -lt 4096) { throw 'locker.exe is suspiciously small - compilation likely broken' }
+
+      - name: Build and package (npm run pack)
         run: npm run pack
 
-      - name: Determine Release Tag
-        id: release_tag
-        shell: bash
+      - name: Verify packaged app resources
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            TAG="${{ github.event.inputs.tag_name }}"
-          else
-            TAG="${{ github.ref_name }}"
-          fi
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          $ErrorActionPreference = 'Stop'
+          $clientApp = 'dist\LOKED-Client\resources\app'
+          $adminApp  = 'dist\LOKED-Admin\resources\app'
 
-      - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
+          $clientRequired = @(
+            'package.json',
+            'src\main.js',
+            'src\locker-manager.js',
+            'src\watchdog.js',
+            'src\network.js',
+            'src\icon-cache.js',
+            'src\provisioner.js',
+            'src\pycharm-lockdown.js',
+            'src\shell\index.html',
+            'src\shell\secondary.html',
+            'src\shell\shell.css',
+            'src\shell\shell.js',
+            'src\shell\vendor\font-awesome\css\all.min.css',
+            'src\browser\browser.html',
+            'src\browser\browser-preload.js',
+            'native\locker.exe'
+          )
+          $adminRequired = @(
+            'package.json',
+            'admin-desktop\main.js',
+            'server\src\index.js',
+            'server\src\config.js',
+            'server\src\discovery.js',
+            'server\public\index.html',
+            'server\public\app.js',
+            'server\public\style.css',
+            'server\public\vendor\font-awesome\css\all.min.css'
+          )
+          $nonEmptyDirs = @(
+            'src\shell',
+            'src\shell\vendor\font-awesome\webfonts',
+            'src\browser',
+            'node_modules'
+          )
+
+          $missing = New-Object System.Collections.Generic.List[string]
+          foreach ($rel in $clientRequired) {
+            $p = Join-Path $clientApp $rel
+            if (-not (Test-Path -LiteralPath $p -PathType Leaf)) { $missing.Add("LOKED-Client: $rel") }
+            elseif ((Get-Item -LiteralPath $p).Length -eq 0) { $missing.Add("LOKED-Client: $rel (empty file)") }
+          }
+          foreach ($rel in $adminRequired) {
+            $p = Join-Path $adminApp $rel
+            if (-not (Test-Path -LiteralPath $p -PathType Leaf)) { $missing.Add("LOKED-Admin: $rel") }
+            elseif ((Get-Item -LiteralPath $p).Length -eq 0) { $missing.Add("LOKED-Admin: $rel (empty file)") }
+          }
+          foreach ($rel in $nonEmptyDirs) {
+            $p = Join-Path $clientApp $rel
+            if (-not (Test-Path -LiteralPath $p -PathType Container)) { $missing.Add("LOKED-Client: $rel\ (directory)") }
+            elseif ((Get-ChildItem -LiteralPath $p -Recurse -File -ErrorAction SilentlyContinue).Count -eq 0) { $missing.Add("LOKED-Client: $rel\ (empty directory)") }
+          }
+          $vendorDir = Join-Path $clientApp 'src\shell\vendor\font-awesome\webfonts'
+          if ((Test-Path -LiteralPath $vendorDir) -and (Get-ChildItem -LiteralPath $vendorDir -File -ErrorAction SilentlyContinue).Count -eq 0) {
+            $missing.Add('LOKED-Client: src\shell\vendor\font-awesome\webfonts (no font files)')
+          }
+
+          if ($missing.Count -gt 0) {
+            Write-Host '=== MISSING PACKAGED RESOURCES ==='
+            $missing | ForEach-Object { Write-Host " - $_" }
+            throw ("Packaged resources check failed: " + $missing.Count + " problem(s)")
+          }
+          Write-Host ("Packaged resources OK: {0} client + {1} admin + {2} client dirs" -f $clientRequired.Count, $adminRequired.Count, $nonEmptyDirs.Count)
+
+      - name: Verify release archives contents
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $expect = @{
+            'dist\releases\LOKED-Client-win-x64.zip' = @(
+              'resources/app/src/main.js',
+              'resources/app/src/icon-cache.js',
+              'resources/app/src/provisioner.js',
+              'resources/app/src/pycharm-lockdown.js',
+              'resources/app/src/shell/index.html',
+              'resources/app/src/shell/shell.css',
+              'resources/app/src/shell/shell.js',
+              'resources/app/src/shell/vendor/font-awesome/css/all.min.css',
+              'resources/app/src/browser/browser.html',
+              'resources/app/src/browser/browser-preload.js',
+              'resources/app/src/native/locker.exe',
+              'LOKED-Client.exe'
+            )
+            'dist\releases\LOKED-Admin-win-x64.zip' = @(
+              'resources/app/admin-desktop/main.js',
+              'resources/app/server/src/index.js',
+              'resources/app/server/public/index.html',
+              'resources/app/server/public/vendor/font-awesome/css/all.min.css',
+              'LOKED-Admin.exe'
+            )
+          }
+          $problems = New-Object System.Collections.Generic.List[string]
+          foreach ($zipPath in $expect.Keys) {
+            if (-not (Test-Path -LiteralPath $zipPath)) { $problems.Add("archive missing: $zipPath"); continue }
+            $zip = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path -LiteralPath $zipPath).Path)
+            try {
+              $names = @($zip.Entries | ForEach-Object { $_.FullName -replace '/', '\' })
+              Write-Host ("{0}: {1} entries, {2:N1} MB" -f $zipPath, $names.Count, ((Get-Item -LiteralPath $zipPath).Length / 1MB))
+              foreach ($rel in $expect[$zipPath]) {
+                $needle = $rel -replace '/', '\'
+                if (-not ($names -contains $needle)) { $problems.Add("$zipPath -> missing entry: $rel") }
+              }
+            } finally { $zip.Dispose() }
+          }
+          foreach ($exe in @('dist\releases\LOKED-Client.exe', 'dist\releases\LOKED-Admin.exe')) {
+            if (-not (Test-Path -LiteralPath $exe)) { $problems.Add("standalone exe missing: $exe"); continue }
+            $len = (Get-Item -LiteralPath $exe).Length
+            Write-Host ("{0}: {1:N1} MB" -f $exe, ($len / 1MB))
+            if ($len -lt 1MB) { $problems.Add("$exe looks empty ($len bytes) - zip payload probably not embedded") }
+          }
+          if ($problems.Count -gt 0) {
+            $problems | ForEach-Object { Write-Host " - $_" }
+            throw ("Archive verification failed: " + $problems.Count + " problem(s)")
+          }
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: ${{ steps.release_tag.outputs.tag }}
-          name: LOKED ${{ steps.release_tag.outputs.tag }}
-          draft: false
-          prerelease: false
-          generate_release_notes: false
-          body: |
-            ## LOKED — Олимпиадная среда (Релиз ${{ steps.release_tag.outputs.tag }})
-
-            ### Файлы релиза:
-            - **`LOKED-Client.exe`** — автономный запускаемый файл для учеников/участников (распаковывается и запускается в один клик).
-            - **`LOKED-Admin.exe`** — автономный запускаемый файл панели администратора и сервера олимпиады.
-            - **`LOKED-Client-win-x64.zip`** — портативная версия клиента в ZIP-архиве (для флешек и ручной распаковки).
-            - **`LOKED-Admin-win-x64.zip`** — портативная версия панели администратора в ZIP-архиве.
-          files: |
+          name: loked-windows-x64
+          path: |
             dist/releases/LOKED-Client.exe
             dist/releases/LOKED-Admin.exe
             dist/releases/LOKED-Client-win-x64.zip
             dist/releases/LOKED-Admin-win-x64.zip
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Resolve release tag
+        id: meta
+        shell: bash
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EVENT_NAME: ${{ github.event_name }}
+          DISPATCH_TAG: ${{ inputs.tag_name }}
+          REF_NAME: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            TAG="${DISPATCH_TAG:-}"
+          else
+            TAG="$REF_NAME"
+          fi
+          {
+            echo "tag=$TAG"
+            echo "sha=$SHA"
+          } >> "$GITHUB_OUTPUT"
+          if [ -z "$TAG" ]; then
+            echo "tag_name is empty -> build check only, no GitHub Release will be created"
+          else
+            echo "release tag resolved: $TAG (target $SHA)"
+          fi
+
+      - name: Create GitHub Release (gh CLI)
+        if: ${{ steps.meta.outputs.tag != '' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.meta.outputs.tag }}
+          TARGET_SHA: ${{ github.sha }}
+          PRERELEASE: ${{ inputs.prerelease && 'true' || 'false' }}
+        run: |
+          set -euo pipefail
+          FILES=(
+            dist/releases/LOKED-Client.exe
+            dist/releases/LOKED-Admin.exe
+            dist/releases/LOKED-Client-win-x64.zip
+            dist/releases/LOKED-Admin-win-x64.zip
+          )
+          for f in "${FILES[@]}"; do
+            if [ ! -f "$f" ]; then echo "artifact not found: $f"; exit 1; fi
+          done
+
+          NOTES="$(cat <<'EOF'
+          ## LOKED - олимпиадная среда
+
+          ### Файлы релиза
+          - **LOKED-Client.exe** - автономный запускаемый клиент для участников (распаковывается в `%LOCALAPPDATA%\Programs\LOKED-Client` и запускается в один клик).
+          - **LOKED-Admin.exe** - автономный запускаемый сервер + панель учителя (порт 3000, UDP discovery 41234).
+          - **LOKED-Client-win-x64.zip** - портативный клиент (для флешек и ручной распаковки).
+          - **LOKED-Admin-win-x64.zip** - портативная панель администратора.
+
+          ### Как проверить
+          1. Запустить `LOKED-Admin.exe`, открыть `http://localhost:3000`.
+          2. Запустить `LOKED-Client.exe` на ПК участника - он сам найдёт сервер по UDP.
+          3. Выход/разблокировка: `Ctrl+Alt+Shift+L`, пароль по умолчанию `admin`.
+          EOF
+          )"
+
+          FLAGS=(--title "LOKED $TAG" --notes "$NOTES")
+          if [ "$PRERELEASE" = "true" ]; then
+            FLAGS+=(--prerelease)
+          fi
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists -> updating and re-uploading artifacts"
+            gh release edit "$TAG" "${FLAGS[@]}"
+            gh release upload "$TAG" "${FILES[@]}" --clobber
+          else
+            echo "Creating release $TAG"
+            gh release create "$TAG" "${FILES[@]}" "${FLAGS[@]}" --target "$TARGET_SHA"
+          fi
+          gh release view "$TAG" || true

@@ -7,10 +7,12 @@ const os = require('os');
 const locker = require('./locker-manager');
 const watchdog = require('./watchdog');
 const network = require('./network');
+const iconCache = require('./icon-cache');
+const provisioner = require('./provisioner');
+const pycharmLockdown = require('./pycharm-lockdown');
 
 let shellWindow = null;
 let secondaryWindows = [];
-let browserWindow = null;
 let currentConfig = {
   contestUrl: 'https://contest.yandex.ru',
   allowedDomains: ['contest.yandex.ru', 'yandex.ru', 'codeforces.com', 'informatics.msk.ru', 'acmp.ru'],
@@ -20,6 +22,15 @@ let currentConfig = {
 const isWindowed = process.argv.includes('--windowed') || process.argv.includes('--dev');
 let isLocked = !isWindowed;
 let isExamRunning = false;
+let currentActiveAppName = 'LOKED Shell';
+
+// Кэш иконок программ: пересчитываем не чаще раза в 10 минут
+const ICON_CACHE_TTL_MS = 10 * 60 * 1000;
+let iconCacheTTL = { icons: null, at: 0 };
+
+// Последнее состояние окружения (для рендерера и отчётов)
+let envState = { apps: [], missing: [], pycharm: {}, checkedAt: null };
+let pendingEnvStatus = null;
 
 // Expand Windows environment variables
 function expandEnv(str) {
@@ -87,6 +98,123 @@ function getFilteredConfig() {
   };
 }
 
+// Реестр встроенных доменов для иконок, которых нет на этом ПК.
+// Один раз внедряем в страницу оболочки после её загрузки.
+async function injectIconDomains(win) {
+  try {
+    const map = {
+      pycharm: 'jetbrains.com',
+      vscode: 'code.visualstudio.com',
+      codeblocks: 'codeblocks.org',
+      pascal: 'pascalabc.net',
+      idle: 'python.org',
+      contest: 'contest.yandex.ru'
+    };
+    await win.webContents.executeJavaScript(`window.LOKED_ICON_DOMAINS = ${JSON.stringify(map)}`);
+    console.log('[Icons] Реестр доменов внедрён в оболочку');
+  } catch (err) {
+    console.warn('[Icons] Не удалось внедрить реестр доменов:', err && err.message);
+  }
+}
+
+// Иконки всех доступных ярлыков: { [shortcutId]: 'file:///...' }. Результат кэшируется на 10 минут.
+async function collectShortcutIcons(force = false) {
+  const now = Date.now();
+  if (!force && iconCacheTTL.icons && (now - iconCacheTTL.at) < ICON_CACHE_TTL_MS) {
+    return iconCacheTTL.icons;
+  }
+
+  const shortcuts = getFilteredConfig().shortcuts || [];
+  try {
+    const icons = await iconCache.resolveShortcutIcons(shortcuts, resolveExePath);
+    const map = (icons && typeof icons === 'object') ? icons : {};
+    iconCacheTTL = { icons: map, at: now };
+    console.log(`[Icons] resolved: ${Object.keys(map).length}`);
+    return map;
+  } catch (err) {
+    console.warn('[Icons] Ошибка получения иконок:', err && err.message);
+    return iconCacheTTL.icons || {};
+  }
+}
+
+// Сборка статуса окружения для рендерера и конфига
+function buildEnvStatus(apps, pycharm) {
+  const list = Array.isArray(apps) ? apps : [];
+  return {
+    apps: list.map((a) => ({
+      id: a.id,
+      title: a.title,
+      installed: !!a.installed,
+      version: a.version || null,
+      path: a.path || null
+    })),
+    missing: list.filter((a) => !a.installed).map((a) => a.id),
+    pycharm: pycharm || {}
+  };
+}
+
+// Отправка статуса окружения в оболочку (с ожиданием готовности рендерера)
+function sendEnvStatus(status) {
+  if (!shellWindow || shellWindow.isDestroyed()) return;
+
+  const deliver = () => {
+    try {
+      if (shellWindow && !shellWindow.isDestroyed()) {
+        shellWindow.webContents.send('env-status', status);
+      }
+    } catch (err) {
+      console.warn('[Env] Не удалось отправить статус в оболочку:', err && err.message);
+    }
+  };
+
+  try {
+    if (shellWindow.webContents.isLoading()) {
+      pendingEnvStatus = status;
+      if (!shellWindow.webContents.envStatusHooked) {
+        shellWindow.webContents.envStatusHooked = true;
+        shellWindow.webContents.once('did-finish-load', () => {
+          try { shellWindow.webContents.envStatusHooked = false; } catch (_) {}
+          if (pendingEnvStatus) {
+            const queued = pendingEnvStatus;
+            pendingEnvStatus = null;
+            sendEnvStatus(queued);
+          }
+        });
+      }
+      return;
+    }
+  } catch (_) {}
+
+  deliver();
+}
+
+// Только проверка окружения (без установки) — вызывается при старте приложения
+async function runEnvDetect() {
+  try {
+    const apps = await provisioner.detectAll();
+    let pycharm = {};
+    try {
+      pycharm = await pycharmLockdown.auditPyCharm();
+    } catch (err) {
+      pycharm = { installed: false, problems: [`Ошибка аудита PyCharm: ${err && err.message}`] };
+    }
+
+    const status = buildEnvStatus(apps, pycharm);
+    envState = { ...status, checkedAt: new Date().toISOString() };
+    currentConfig.provisioning = { checkedAt: envState.checkedAt, missing: status.missing };
+
+    const installedCount = status.apps.length - status.missing.length;
+    console.log(`[Env] Проверка окружения: установлено ${installedCount} из ${status.apps.length}`);
+    console.log(`[Env] Отсутствуют: ${status.missing.length ? status.missing.join(', ') : 'нет'}`);
+
+    sendEnvStatus(status);
+    return status;
+  } catch (err) {
+    console.warn('[Env] Ошибка проверки окружения:', err && err.message);
+    return null;
+  }
+}
+
 // Multi-Monitor Window Management
 function createAllShellWindows() {
   const primaryDisplay = screen.getPrimaryDisplay();
@@ -132,6 +260,11 @@ function createAllShellWindows() {
   }
 
   shellWindow.loadFile(path.join(__dirname, 'shell', 'index.html'));
+
+  // Внедряем реестр доменов один раз, когда страница оболочки уже загружена
+  shellWindow.webContents.once('did-finish-load', () => {
+    injectIconDomains(shellWindow);
+  });
 
   shellWindow.on('closed', () => {
     shellWindow = null;
@@ -182,84 +315,21 @@ function closeSecondaryWindows() {
   secondaryWindows = [];
 }
 
-// Safe Chromium Browser Window
-function openSafeBrowser(urlToOpen) {
-  const targetUrl = urlToOpen || currentConfig.contestUrl || 'https://contest.yandex.ru';
-
-  if (browserWindow) {
-    browserWindow.show();
-    browserWindow.focus();
-    if (urlToOpen) {
-      browserWindow.loadURL(targetUrl);
-    }
-    return;
+// Ссылки и контест открываются штатным окном оболочки (со «светофорными» кнопками),
+// поэтому отдельное kiosk-окно браузера больше не используется.
+function sendOpenUrl(urlToOpen) {
+  const target = urlToOpen || currentConfig.contestUrl || 'https://contest.yandex.ru';
+  if (shellWindow && !shellWindow.isDestroyed()) {
+    shellWindow.webContents.send('open-url', target);
   }
-
-  const primaryDisplay = screen.getPrimaryDisplay();
-  const { width, height } = primaryDisplay.bounds;
-
-  browserWindow = new BrowserWindow({
-    frame: false,
-    fullscreen: true,
-    kiosk: true,
-    alwaysOnTop: true,
-    skipTaskbar: true,
-    autoHideMenuBar: true,
-    backgroundColor: '#050505',
-    webPreferences: {
-      nodeIntegration: false,
-      contextIsolation: true,
-      webviewTag: true,
-      devTools: false,
-      preload: path.join(__dirname, 'browser', 'browser-preload.js')
-    }
-  });
-
-  browserWindow.setFullScreen(true);
-  browserWindow.maximize();
-  browserWindow.setAlwaysOnTop(true);
-
-  // Catch Escape globally across all inner frames/webviews
-  browserWindow.webContents.on('before-input-event', (event, input) => {
-    if (input.key === 'Escape' && input.type === 'keyDown') {
-      if (browserWindow) {
-        browserWindow.close();
-        browserWindow = null;
-      }
-      if (shellWindow) {
-        shellWindow.show();
-        shellWindow.focus();
-      }
-    }
-  });
-
-  browserWindow.loadFile(path.join(__dirname, 'browser', 'browser.html'), {
-    query: { initialUrl: targetUrl }
-  });
-
-  browserWindow.on('closed', () => {
-    browserWindow = null;
-    currentActiveAppName = 'LOKED Shell';
-    if (shellWindow) {
-      shellWindow.show();
-      shellWindow.focus();
-    }
-  });
 }
 
 const workspaceDir = path.join(os.homedir(), 'Desktop', 'LOKED_Workspace');
 function ensureWorkspace() {
   try {
+    // Рабочая папка должна быть пустой: никаких образцов и подсказок внутри
     if (!fs.existsSync(workspaceDir)) {
       fs.mkdirSync(workspaceDir, { recursive: true });
-    }
-    const sampleSolution = path.join(workspaceDir, 'solution.py');
-    if (!fs.existsSync(sampleSolution)) {
-      fs.writeFileSync(sampleSolution, '# Олимпиадное решение на Python\nimport sys\n\ndef solve():\n    # Напишите ваше решение здесь\n    pass\n\nif __name__ == "__main__":\n    solve()\n', 'utf-8');
-    }
-    const sampleNotes = path.join(workspaceDir, 'notes.txt');
-    if (!fs.existsSync(sampleNotes)) {
-      fs.writeFileSync(sampleNotes, 'Черновик для формул, идей и заметок олимпиады.\n', 'utf-8');
     }
   } catch (e) {
     console.warn('[Workspace] Error initializing workspace dir:', e);
@@ -379,12 +449,66 @@ function setupIPC() {
 
   ipcMain.handle('fs:get-workspace-path', () => workspaceDir);
 
+  // Иконки реальных программ: { [shortcutId]: 'file:///...' }
+  ipcMain.handle('icons:resolve', async () => {
+    return collectShortcutIcons(false);
+  });
+
+  // Проверка установленного олимпиадного ПО
+  ipcMain.handle('env:detect', async () => {
+    const status = await runEnvDetect();
+    return status || { apps: [], missing: envState.missing, pycharm: {} };
+  });
+
+  // Полная подготовка окружения: установка + настройка PyCharm
+  ipcMain.handle('env:ensure', async (event, options = {}) => {
+    const opts = options || {};
+    console.log('[Env] Запрошена подготовка окружения (autoInstall: ' + (!!opts.autoInstall) + ')');
+
+    let report = null;
+    try {
+      report = await provisioner.ensureEnvironment({
+        autoInstall: !!opts.autoInstall,
+        hardenPyCharm: opts.hardenPyCharm !== false,
+        blockNetwork: !!opts.blockNetwork,
+        onProgress: (step) => {
+          console.log(`[Env] ${step.step}: ${step.message}`);
+        }
+      });
+    } catch (err) {
+      console.warn('[Env] Ошибка подготовки окружения:', err && err.message);
+      return { success: false, message: `Ошибка подготовки окружения: ${err && err.message}`, apps: [], missing: envState.missing, pycharm: {} };
+    }
+
+    const status = buildEnvStatus(report.apps, report.pycharm);
+    envState = { ...status, checkedAt: report.checkedAt || new Date().toISOString() };
+    currentConfig.provisioning = { checkedAt: envState.checkedAt, missing: status.missing };
+
+    for (const errItem of report.errors || []) {
+      console.warn(`[Env] ${errItem}`);
+    }
+    console.log(`[Env] Подготовка завершена. Отсутствуют: ${status.missing.length ? status.missing.join(', ') : 'нет'}`);
+
+    sendEnvStatus(status);
+
+    return {
+      success: true,
+      checkedAt: envState.checkedAt,
+      apps: status.apps,
+      missing: status.missing,
+      pycharm: status.pycharm,
+      installed: report.installed || [],
+      errors: report.errors || []
+    };
+  });
+
   ipcMain.handle('launch-app', async (event, shortcutId) => {
     const sc = (currentConfig.shortcuts || []).find(s => s.id === shortcutId);
     if (!sc) return { success: false, message: 'Ярлык не найден' };
 
     if (sc.type === 'browser' || sc.type === 'url' || sc.url) {
-      openSafeBrowser(sc.url);
+      // Ссылки открываются штатным окном оболочки, отдельный браузер не нужен
+      sendOpenUrl(sc.url || currentConfig.contestUrl);
       currentActiveAppName = sc.name;
       network.sendHeartbeat({ activeApp: sc.name });
       return { success: true };
@@ -397,7 +521,7 @@ function setupIPC() {
       if (sc.args && Array.isArray(sc.args)) {
         spawn(exePath, sc.args, { detached: true, stdio: 'ignore' }).unref();
       } else {
-        exec(`start "" "${exePath}"`, (err) => {
+        exec(`start "" /MAX "${exePath}"`, (err) => {
           if (err) console.error(`[Launch] Error:`, err);
         });
       }
@@ -420,15 +544,12 @@ function setupIPC() {
   });
 
   ipcMain.on('open-contest', (event, url) => {
-    openSafeBrowser(url);
+    sendOpenUrl(url);
   });
 
+  // Заглушка: отдельного браузера больше нет, просто возвращаем оболочку на экран
   ipcMain.on('close-browser', () => {
-    if (browserWindow) {
-      browserWindow.close();
-      browserWindow = null;
-    }
-    if (shellWindow) {
+    if (shellWindow && !shellWindow.isDestroyed()) {
       shellWindow.show();
       shellWindow.focus();
     }
@@ -504,6 +625,7 @@ function setupNetwork() {
   network.on('client:init', (data) => {
     if (data.config) {
       currentConfig = { ...currentConfig, ...data.config };
+      iconCacheTTL = { icons: null, at: 0 };
     }
     if (shellWindow) {
       shellWindow.webContents.send('config-update', getFilteredConfig());
@@ -515,6 +637,8 @@ function setupNetwork() {
 
   network.on('config:updated', (newConfig) => {
     currentConfig = { ...currentConfig, ...newConfig };
+    // Ярлыки изменились — сбрасываем кэш иконок, чтобы пересчитать при следующем запросе
+    iconCacheTTL = { icons: null, at: 0 };
     if (shellWindow) {
       shellWindow.webContents.send('config-update', getFilteredConfig());
     }
@@ -535,10 +659,7 @@ function setupNetwork() {
 
   network.on('exam:ended', () => {
     isExamRunning = false;
-    if (browserWindow) {
-      browserWindow.close();
-      browserWindow = null;
-    }
+    currentActiveAppName = 'LOKED Shell';
     if (shellWindow) {
       shellWindow.webContents.send('exam-ended');
       shellWindow.show();
@@ -654,6 +775,9 @@ app.whenReady().then(() => {
   // Setup networking & discovery
   setupNetwork();
   network.start();
+
+  // Проверка окружения при старте (только детект, установка — исключительно по IPC)
+  runEnvDetect();
 
   // Start live screen frame streaming loop
   setTimeout(streamTick, 1000);

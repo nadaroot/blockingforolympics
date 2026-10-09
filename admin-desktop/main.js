@@ -1,6 +1,7 @@
 const { app, BrowserWindow, Menu, Tray, dialog } = require('electron');
 const path = require('path');
 const http = require('http');
+const fs = require('fs');
 
 let mainWindow = null;
 let tray = null;
@@ -40,18 +41,23 @@ function checkOrStartServer() {
 async function createWindow() {
   await checkOrStartServer();
 
-  mainWindow = new BrowserWindow({
+  const iconPath = path.join(__dirname, 'icon.png');
+  const windowOpts = {
     width: 1280,
     height: 800,
     minWidth: 1024,
     minHeight: 700,
     title: 'LOKED Admin — Панель управления олимпиадой',
-    icon: path.join(__dirname, 'icon.png'),
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true
     }
-  });
+  };
+  if (fs.existsSync(iconPath)) {
+    windowOpts.icon = iconPath;
+  }
+
+  mainWindow = new BrowserWindow(windowOpts);
 
   Menu.setApplicationMenu(null);
   mainWindow.loadURL('http://localhost:3000');

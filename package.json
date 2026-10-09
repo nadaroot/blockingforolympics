@@ -7,7 +7,8 @@
     "start:server": "node server/src/index.js",
     "start:client": "electron client/src/main.js",
     "start:admin": "electron admin-desktop/main.js",
-    "build:locker": "\"C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\csc.exe\" /nologo /target:winexe /out:client/native/locker.exe client/native/Locker.cs",
+    "start:preview": "node scripts/preview.js",
+    "build:locker": "\"C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\csc.exe\" /nologo /target:winexe /out:client\\native\\locker.exe client\\native\\Locker.cs",
     "pack": "node scripts/pack.js"
   },
   "keywords": [
