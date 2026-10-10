@@ -56,7 +56,13 @@
     return {
       contestUrl: 'https://contest.yandex.ru',
       allowedDomains: ['contest.yandex.ru', 'yandex.ru', 'codeforces.com', 'informatics.msk.ru', 'acmp.ru'],
-      masterPassword: 'admin',
+      masterPassword: 'Extybr',
+      ai: {
+        freedepsekUrl: 'http://127.0.0.1:8317/v1/chat/completions',
+        ollamaUrl: 'http://127.0.0.1:11434',
+        model: 'qwen2.5-coder:1.5b',
+        preferFreedepsek: true
+      },
       shortcuts: window.__LOKED_PREVIEW_SHORTCUTS__ || []
     };
   }
@@ -153,6 +159,31 @@
         return { success: true };
       case 'verify-unlock':
         return { success: true };
+      case 'lang:list':
+        return [
+          { tag: 'ru', hkl: '00000419', label: 'Русский' },
+          { tag: 'en', hkl: '00000409', label: 'English' }
+        ];
+      case 'lang:set':
+        console.info('[preview] lang:set:', args[0]);
+        return { success: true };
+      case 'ai:status':
+        return { freedepsek: false, ollama: true, model: 'qwen2.5-coder:1.5b', activeBackend: 'ollama' };
+      case 'ai:ask': {
+        const payload = args[0] || {};
+        const text = [
+          '# Решение (превью)',
+          '',
+          'def solve():',
+          '    print("ответ")',
+          '',
+          'solve()',
+          '',
+          `// запрос: ${String(payload.prompt || '').trim() || 'без уточнения'}`,
+          `// backend: ollama`
+        ].join('\n');
+        return { success: true, text, backend: 'ollama' };
+      }
       default:
         console.info('[preview] ipcRenderer.invoke:', channel, args);
         return { success: true };
@@ -232,6 +263,17 @@
       try { window.openMenubarMenu(params.get('mbmenu')); } catch (err) { console.warn(err); }
     }, 1500);
   }
+  // ?langmenu=1 — меню выбора языка ввода (клик по индикатору в панели)
+  if (params.has('langmenu')) {
+    setTimeout(() => {
+      try {
+        const node = document.getElementById('mbLang');
+        if (node) node.click();
+      } catch (err) {
+        console.warn('[preview] lang menu:', err && err.message);
+      }
+    }, 1600);
+  }
   if (params.has('menu')) {
     setTimeout(() => {
       const surface = document.getElementById('desktopSurface');
@@ -244,12 +286,54 @@
       if (trigger) trigger.dispatchEvent(new MouseEvent('mouseenter'));
     }, 1800);
   }
+  // ?ai=1 — сценарий скрытого ИИ-помощника: выделение в редакторе + Ctrl+Shift+P
+  if (params.has('ai')) {
+    setTimeout(() => {
+      try {
+        window.openWindow('editor', { filename: 'test.py', content: 'print("hello")' });
+        const ta = document.getElementById('editorTextarea');
+        if (ta) {
+          ta.focus();
+          ta.setSelectionRange(0, 9);
+        }
+        window.dispatchEvent(new KeyboardEvent('keydown', {
+          key: 'P', code: 'KeyP', ctrlKey: true, shiftKey: true, bubbles: true, cancelable: true
+        }));
+      } catch (err) {
+        console.warn('[preview] ai scenario:', err && err.message);
+      }
+    }, 1800);
+  }
 
-  document.addEventListener('DOMContentLoaded', () => {});
+  // ?filesmenu=1 — ПКМ по файлу в окне «Мои файлы»
+  if (params.has('filesmenu')) {
+    setTimeout(() => {
+      try {
+        window.openWindow('files');
+        window.__previewCreateFile('test.py');
+        if (typeof window.loadFilesWindow === 'function') window.loadFilesWindow();
+        setTimeout(() => {
+          const grid = document.getElementById('filesWindowGrid');
+          const box = grid && grid.querySelector('.file-box');
+          if (box) {
+            box.dispatchEvent(new MouseEvent('contextmenu', {
+              bubbles: true, cancelable: true, clientX: 400, clientY: 300
+            }));
+          }
+        }, 500);
+      } catch (err) {
+        console.warn('[preview] filesmenu:', err && err.message);
+      }
+    }, 1600);
+  }
 
   window.__previewEmit = emit;
   window.__previewFs = {
     list: () => files.map(f => Object.assign({}, f)),
     reset: () => { files = []; contents = {}; }
+  };
+  // Создание файла превью-памятью (для тестовых режимов)
+  window.__previewCreateFile = function(name, content) {
+    return handle('fs:create-file', [{ filename: name, content: content || 'x' }]);
   };
 })();

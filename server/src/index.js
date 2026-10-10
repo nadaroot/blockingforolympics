@@ -151,7 +151,8 @@ io.on('connection', (socket) => {
         contestUrl: config.contestUrl,
         allowedDomains: config.allowedDomains,
         shortcuts: config.shortcuts,
-        masterPassword: config.masterPassword
+        masterPassword: config.masterPassword,
+        ai: config.ai
       },
       exam: examState
     });
@@ -326,7 +327,8 @@ io.on('connection', (socket) => {
       contestUrl: config.contestUrl,
       allowedDomains: config.allowedDomains,
       shortcuts: config.shortcuts,
-      masterPassword: config.masterPassword
+      masterPassword: config.masterPassword,
+      ai: config.ai
     });
     addLog('info', 'Конфигурация (ярлыки и настройки контеста) обновлена и разослана на все ПК');
     broadcastAdminsState();

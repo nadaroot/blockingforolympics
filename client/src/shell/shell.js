@@ -21,6 +21,7 @@ const systemClock = document.getElementById('mbClock');
 const timerDot = document.getElementById('timerDot');
 const timerDigits = document.getElementById('timerDigits');
 const timerLabel = document.getElementById('timerLabel');
+const examTimerContainer = document.getElementById('examTimerContainer');
 
 const desktopSurface = document.getElementById('desktopSurface');
 const desktopShell = document.getElementById('desktopShell');
@@ -363,141 +364,21 @@ const WINDOWS_MAP = {
 };
 
 // ==========================================================================
-// TOUCH BAR (macOS-style context strip)
+// TOP MENU BAR REFERENCES
 // ==========================================================================
 
-const touchBar = document.getElementById('touchBar');
-const touchBarGroup = document.getElementById('touchBarGroup');
 const mbAppName = document.getElementById('mbAppName');
 const mbMenus = document.getElementById('mbMenus');
 const mbBrandTrigger = document.getElementById('mbBrandTrigger');
 const mbBrandMenu = document.getElementById('mbBrandMenu');
-const btnTouchBarToggle = document.getElementById('btnTouchBarToggle');
 
-const TB_SVG = {
-  trophy: '<path d="M7 4h10v5a5 5 0 0 1-10 0V4Z"/><path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3"/><path d="M9 21h6M12 17v4"/>',
-  code: '<path d="m16 18 6-6-6-6M8 6l-6 6 6 6"/>',
-  folder: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/>',
-  calc: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 12h.01M12 12h.01M16 12h.01M8 16h.01M12 16h.01M16 16h.01"/>',
-  back: '<path d="m15 18-6-6 6-6"/>',
-  forward: '<path d="m9 18 6-6-6-6"/>',
-  reload: '<path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/>',
-  home: '<path d="m3 11 9-8 9 8"/><path d="M5 10v10h14V10"/>',
-  save: '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8M7 3v5h8"/>',
-  eraser: '<path d="M4 20h16"/><path d="m6 16 8-8 5 5-6 6H8Z"/>',
-  plus: '<path d="M12 5v14M5 12h14"/>',
-  expand: '<path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/>',
-  close: '<path d="M18 6 6 18M6 6l12 12"/>',
-  undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/>',
-  redo: '<path d="m15 14 5-5-5-5"/><path d="M20 9H10a6 6 0 0 0 0 12h3"/>',
-  cut: '<circle cx="6" cy="18" r="3"/><circle cx="18" cy="18" r="3"/><path d="M8 12 18 4M16 12 6 4"/>',
-  copy: '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>',
-  paste: '<path d="M9 4h6v3H9z"/><path d="M15 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/>',
-  selectall: '<rect x="4" y="4" width="16" height="16" rx="2" stroke-dasharray="3 3"/>',
-  search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
-  minimize: '<path d="M5 12h14"/>',
-  monitor: '<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/>',
-  eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>',
-  lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
-  info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>',
-  help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.6 2.6 0 1 1 3.4 2.5c-.6.2-.9.8-.9 1.4v.6M12 17h.01"/>',
-  shield: '<path d="M12 3 5 6v6c0 4.5 3 7.9 7 9 4-1.1 7-4.5 7-9V6l-7-3Z"/>',
-  check: '<path d="m5 13 4 4L19 7"/>'
+// Имена встроенных окон: их показывает панель меню (#mbAppName) и меню дока
+const WINDOW_APP_NAMES = {
+  browser: 'Яндекс Контест',
+  editor: 'Редактор кода',
+  files: 'Мои файлы',
+  calc: 'Калькулятор'
 };
-
-const TOUCHBAR_APPS = {
-  browser: { name: 'Яндекс Контест', icon: BASE_ICONS.contest },
-  editor: { name: 'Редактор кода', icon: BASE_ICONS.editor },
-  files: { name: 'Мои файлы', icon: BASE_ICONS.files },
-  calc: { name: 'Калькулятор', icon: BASE_ICONS.calc }
-};
-
-const TOUCHBAR_ACTIONS = {
-  'win:browser': () => openWindow('browser'),
-  'win:editor': () => openWindow('editor'),
-  'win:files': () => openWindow('files'),
-  'win:calc': () => openWindow('calc'),
-  'win:fullscreen': () => { const k = getActiveWindowKey(); if (k) toggleMaximizeWindow(k); },
-  'win:close': () => { const k = getActiveWindowKey(); if (k) closeWindow(k); },
-  'new:python': () => window.createDesktopItem('python'),
-  'new:custom': () => window.createDesktopItem('custom'),
-  'desktop:refresh': () => refreshDesktopFiles(),
-  'browser:back': () => { if (desktopBrowserWv.canGoBack()) desktopBrowserWv.goBack(); },
-  'browser:forward': () => { if (desktopBrowserWv.canGoForward()) desktopBrowserWv.goForward(); },
-  'browser:reload': () => desktopBrowserWv.reload(),
-  'browser:home': () => desktopBrowserWv.setAttribute('src', currentConfig.contestUrl || 'https://contest.yandex.ru'),
-  'editor:save': () => saveCurrentEditorFile(),
-  'editor:clear': () => btnEditorClear.click(),
-  'files:newfile': () => window.createDesktopItem('python'),
-  'files:newfolder': () => window.createDesktopItem('folder'),
-  'files:refresh': () => { refreshDesktopFiles(); loadFilesWindow(); },
-  'calc:C': () => window.calcInput('C'),
-  'calc:sign': () => window.calcInput('±'),
-  'calc:percent': () => window.calcInput('%'),
-  'calc:div': () => window.calcInput('/'),
-  'calc:mul': () => window.calcInput('*'),
-  'calc:sub': () => window.calcInput('-'),
-  'calc:add': () => window.calcInput('+'),
-  'calc:eq': () => window.calcInput('=')
-};
-
-const TOUCHBAR_LAYOUTS = {
-  desktop: [
-    { icon: 'trophy', label: 'Контест', cmd: 'win:browser', accent: true },
-    { icon: 'code', label: 'Редактор', cmd: 'win:editor' },
-    { icon: 'folder', label: 'Файлы', cmd: 'win:files' },
-    { icon: 'calc', label: 'Калькулятор', cmd: 'win:calc' },
-    { sep: true },
-    { icon: 'plus', label: 'Новый файл', cmd: 'new:python' },
-    { icon: 'reload', label: 'Обновить', cmd: 'desktop:refresh' }
-  ],
-  browser: [
-    { icon: 'back', label: 'Назад', cmd: 'browser:back', compact: true },
-    { icon: 'forward', label: 'Вперёд', cmd: 'browser:forward', compact: true },
-    { icon: 'reload', label: 'Обновить', cmd: 'browser:reload', compact: true },
-    { icon: 'home', label: 'На главную', cmd: 'browser:home', compact: true },
-    { sep: true },
-    { icon: 'plus', label: 'Новый файл', cmd: 'new:custom' },
-    { sep: true },
-    { icon: 'expand', label: 'Во весь экран', cmd: 'win:fullscreen' },
-    { icon: 'close', label: 'Закрыть', cmd: 'win:close', danger: true }
-  ],
-  editor: [
-    { icon: 'save', label: 'Сохранить', cmd: 'editor:save', accent: true },
-    { icon: 'eraser', label: 'Очистить', cmd: 'editor:clear' },
-    { sep: true },
-    { icon: 'plus', label: 'Новый файл', cmd: 'new:custom' },
-    { sep: true },
-    { icon: 'expand', label: 'Во весь экран', cmd: 'win:fullscreen' },
-    { icon: 'close', label: 'Закрыть', cmd: 'win:close', danger: true }
-  ],
-  files: [
-    { icon: 'plus', label: 'Новый файл', cmd: 'files:newfile', accent: true },
-    { icon: 'folder', label: 'Новая папка', cmd: 'files:newfolder' },
-    { icon: 'reload', label: 'Обновить', cmd: 'files:refresh' },
-    { sep: true },
-    { icon: 'expand', label: 'Во весь экран', cmd: 'win:fullscreen' },
-    { icon: 'close', label: 'Закрыть', cmd: 'win:close', danger: true }
-  ],
-  calc: [
-    { icon: 'eraser', label: 'C', cmd: 'calc:C', compact: true },
-    { icon: 'plus', label: '±', cmd: 'calc:sign', compact: true },
-    { icon: 'reload', label: '%', cmd: 'calc:percent', compact: true },
-    { sep: true },
-    { icon: 'code', label: '÷', cmd: 'calc:div', compact: true },
-    { icon: 'code', label: '×', cmd: 'calc:mul', compact: true },
-    { icon: 'code', label: '−', cmd: 'calc:sub', compact: true },
-    { icon: 'plus', label: '+', cmd: 'calc:add', compact: true },
-    { icon: 'trophy', label: '=', cmd: 'calc:eq', compact: true },
-    { sep: true },
-    { icon: 'expand', label: 'Во весь экран', cmd: 'win:fullscreen' },
-    { icon: 'close', label: 'Закрыть', cmd: 'win:close', danger: true }
-  ]
-};
-
-function tbIcon(name, size = 15) {
-  return `<span class="tb-icon"><svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${TB_SVG[name] || ''}</svg></span>`;
-}
 
 function getActiveWindowKey() {
   const active = document.querySelector('.mac-window.active');
@@ -506,126 +387,8 @@ function getActiveWindowKey() {
   return Object.keys(WINDOWS_MAP).find(k => WINDOWS_MAP[k] === active) || null;
 }
 
-function updateTouchBarApp(key) {
-  if (mbAppName) mbAppName.textContent = key && TOUCHBAR_APPS[key] ? TOUCHBAR_APPS[key].name : 'Рабочий стол';
-}
-
-function renderTouchBar() {
-  if (!touchBarGroup) return;
-  const key = getActiveWindowKey();
-  const layout = TOUCHBAR_LAYOUTS[key] || TOUCHBAR_LAYOUTS.desktop;
-
-  touchBarGroup.innerHTML = layout.map(item => {
-    if (item.sep) return '<span class="tb-sep"></span>';
-    const cls = ['tb-btn'];
-    if (item.accent) cls.push('accent');
-    if (item.danger) cls.push('danger');
-    if (item.compact) cls.push('compact');
-    if (!item.label) cls.push('icon-only');
-    const title = escapeHtml(item.label || '');
-    return `<button class="${cls.join(' ')}" data-cmd="${item.cmd}" title="${title}">${item.icon ? tbIcon(item.icon) : ''}${item.label ? `<span>${escapeHtml(item.label)}</span>` : ''}</button>`;
-  }).join('');
-
-  updateTouchBarApp(key);
-}
-
-if (touchBarGroup) {
-  touchBarGroup.addEventListener('click', (e) => {
-    const btn = e.target.closest('.tb-btn');
-    if (!btn) return;
-    const action = TOUCHBAR_ACTIONS[btn.dataset.cmd];
-    if (!action) return;
-    try {
-      action();
-    } catch (err) {
-      console.warn('[TouchBar] action failed:', err);
-    }
-  });
-}
-
-if (btnTouchBarToggle) {
-  btnTouchBarToggle.addEventListener('click', () => {
-    const collapsed = touchBar.classList.toggle('collapsed');
-    if (desktopShell) desktopShell.classList.toggle('touchbar-collapsed', collapsed);
-    btnTouchBarToggle.title = collapsed ? 'Показать Touch Bar' : 'Свернуть Touch Bar';
-    if (collapsed) hideTouchBar();
-    else showTouchBar();
-  });
-}
-
-// ==========================================================================
-// TOUCH BAR: скрыт по умолчанию, показывается по наведению (как в macOS)
-// ==========================================================================
-
-const TOUCHBAR_HIDE_DELAY = 2500; // скрывать через ~2.5 с без активности
-const TOUCHBAR_TOP_ZONE = 140;    // верхняя кромка экрана
-
-let touchBarHideTimer = null;
-
-// Активное окно может само просить не показывать Touch Bar (data-touchbar="hide")
-function activeWindowHidesTouchBar() {
-  const key = getActiveWindowKey();
-  if (!key) return false;
-  const win = WINDOWS_MAP[key];
-  if (!win) return false;
-  const flag = win.getAttribute('data-touchbar');
-  return flag === 'hide' || flag === 'false';
-}
-
-function touchBarBlocked() {
-  if (!touchBar) return true;
-  if (touchBar.classList.contains('collapsed')) return true; // пользователь свернул вручную
-  return activeWindowHidesTouchBar();
-}
-
-function showTouchBar() {
-  if (!touchBar || touchBarBlocked()) return;
-  touchBar.classList.add('touchbar-visible');
-  if (desktopShell) desktopShell.classList.add('touchbar-peek');
-  scheduleTouchBarHide();
-}
-
-function hideTouchBar() {
-  if (!touchBar) return;
-  clearTimeout(touchBarHideTimer);
-  touchBarHideTimer = null;
-  touchBar.classList.remove('touchbar-visible');
-  if (desktopShell) desktopShell.classList.remove('touchbar-peek');
-}
-
-function scheduleTouchBarHide() {
-  clearTimeout(touchBarHideTimer);
-  touchBarHideTimer = setTimeout(hideTouchBar, TOUCHBAR_HIDE_DELAY);
-}
-
-// Зона над меню-баром, куда попадает указатель у верхней кромки экрана
-const touchbarHotzone = document.getElementById('touchbarHotzone');
-
-if (touchbarHotzone) {
-  touchbarHotzone.addEventListener('mouseenter', showTouchBar);
-  touchbarHotzone.addEventListener('mousemove', showTouchBar);
-}
-
-// Наведение на док тоже поднимает Touch Bar
-const dockWrap = document.querySelector('.nav-wrap');
-const dockBar = document.querySelector('.nav-bar');
-[dockWrap, dockBar].forEach(node => {
-  if (!node) return;
-  node.addEventListener('mouseenter', showTouchBar);
-  node.addEventListener('mousemove', showTouchBar);
-});
-
-// Движение мыши к верхней кромке экрана при открытом/активном окне
-document.addEventListener('mousemove', (e) => {
-  if (e.clientY >= TOUCHBAR_TOP_ZONE) return;
-  if (!openWindows.size) return;
-  showTouchBar();
-});
-
-// Touch Bar сам продлевает свою видимость, пока указатель над ним
-if (touchBar) {
-  touchBar.addEventListener('mouseenter', showTouchBar);
-  touchBar.addEventListener('mousemove', scheduleTouchBarHide);
+function updateMenubarAppName(key) {
+  if (mbAppName) mbAppName.textContent = (key && WINDOW_APP_NAMES[key]) || 'Рабочий стол';
 }
 
 // ==========================================================================
@@ -651,13 +414,6 @@ const MENUBAR_ACTIONS = {
 
   'view:fullscreen': () => { const k = getActiveWindowKey(); if (k) toggleMaximizeWindow(k); },
   'view:minimize': () => { const k = getActiveWindowKey(); if (k) minimizeWindow(k); },
-  'view:touchbar': () => {
-    if (!touchBar) return;
-    if (touchBar.classList.contains('touchbar-visible')) { hideTouchBar(); return; }
-    // Ручное «показать» снимает и режим свернутой панели
-    if (touchBar.classList.contains('collapsed') && btnTouchBarToggle) btnTouchBarToggle.click();
-    showTouchBar();
-  },
   'view:dock': () => { const d = document.querySelector('.docker'); if (d) d.classList.toggle('force-hidden'); },
   'view:refresh': () => refreshDesktopFiles(),
   'view:reset-layout': () => resetDesktopIconLayout(),
@@ -679,7 +435,6 @@ const MENUBAR_ACTIONS = {
 
 function menubarMenus() {
   const key = getActiveWindowKey();
-  const touchbarHidden = touchBar && !touchBar.classList.contains('touchbar-visible');
   const dockHidden = document.querySelector('.docker') &&
     document.querySelector('.docker').classList.contains('force-hidden');
 
@@ -727,7 +482,6 @@ function menubarMenus() {
         { label: 'Во весь экран', icon: 'expand', cmd: 'view:fullscreen', disabled: !key },
         { label: 'Свернуть окно', icon: 'minimize', cmd: 'view:minimize', disabled: !key },
         { sep: true },
-        { label: touchbarHidden ? 'Показать Touch Bar' : 'Скрыть Touch Bar', icon: 'monitor', cmd: 'view:touchbar' },
         { label: dockHidden ? 'Показать док' : 'Скрыть док', icon: 'eye', cmd: 'view:dock' },
         { sep: true },
         { label: 'Обновить рабочий стол', icon: 'reload', cmd: 'view:refresh', key: 'F5' },
@@ -768,6 +522,39 @@ function menubarMenus() {
 
 let openMenubarMenuId = null;
 
+// Монохромные SVG-иконки пунктов меню (16px, как SF Symbols)
+const MENU_ICONS = {
+  check: '<path d="M4 12.5 9.5 18 20 6"/>',
+  info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 8h.01"/>',
+  folder: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/>',
+  reload: '<path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/>',
+  plus: '<path d="M12 5v14"/><path d="M5 12h14"/>',
+  code: '<path d="m8 16-4-4 4-4"/><path d="m16 8 4 4-4 4"/><path d="M13 5l-2 14"/>',
+  save: '<path d="M5 3h11l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M8 3v6h7"/><path d="M8 14h8v7H8z"/>',
+  close: '<path d="M6 6l12 12"/><path d="M18 6 6 18"/>',
+  undo: '<path d="M9 7 4 12l5 5"/><path d="M4 12h11a5 5 0 0 1 5 5v1"/>',
+  redo: '<path d="m15 7 5 5-5 5"/><path d="M20 12H9a5 5 0 0 0-5 5v1"/>',
+  cut: '<circle cx="7" cy="7" r="2.5"/><circle cx="7" cy="17" r="2.5"/><path d="M8.8 8.8 20 20"/><path d="M8.8 15.2 20 4"/>',
+  copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/>',
+  paste: '<path d="M8 4H6a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2"/><rect x="8" y="2" width="8" height="4" rx="1"/>',
+  selectall: '<rect x="4" y="4" width="16" height="16" rx="2" stroke-dasharray="3 2"/><path d="M8 12l3 3 5-6"/>',
+  search: '<circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/>',
+  expand: '<path d="M9 4H4v5"/><path d="M15 20h5v-5"/><path d="M20 9V4h-5"/><path d="M4 15v5h5"/>',
+  minimize: '<path d="M5 12h14"/>',
+  eye: '<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z"/><circle cx="12" cy="12" r="2.5"/>',
+  home: '<path d="m3 11 9-8 9 8"/><path d="M19 10v10a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V10"/>',
+  monitor: '<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8"/><path d="M12 16v4"/>',
+  trophy: '<path d="M8 4h8v5a4 4 0 0 1-8 0V4z"/><path d="M8 6H5v2a3 3 0 0 0 3 3"/><path d="M16 6h3v2a3 3 0 0 1-3 3"/><path d="M10 17h4"/><path d="M8 21h8"/>',
+  calc: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8"/><path d="M8 12h2"/><path d="M14 12h2"/><path d="M8 16h2"/><path d="M14 16h2"/>',
+  shield: '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3z"/><path d="m9 12 2 2 4-4"/>'
+};
+
+function menuIcon(name, size = 15) {
+  const path = MENU_ICONS[name];
+  if (!path) return '';
+  return `<svg class="mb-dd-svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${path}</svg>`;
+}
+
 function renderMenubarDropdown(menu) {
   return menu.items.map(item => {
     if (item.sep) return '<div class="mb-dd-sep"></div>';
@@ -776,7 +563,7 @@ function renderMenubarDropdown(menu) {
     if (item.disabled) cls.push('disabled');
     const icon = item.check ? 'check' : (item.icon || '');
     return `<button class="${cls.join(' ')}" data-cmd="${item.cmd}"${item.disabled ? ' disabled' : ''}>` +
-      `<span class="mb-dd-icon">${icon ? tbIcon(icon, item.check ? 14 : 15) : ''}</span>` +
+      `<span class="mb-dd-icon">${menuIcon(icon, item.check ? 14 : 15)}</span>` +
       `<span class="mb-dd-label">${escapeHtml(item.label)}</span>` +
       `${item.key ? `<span class="mb-dd-key">${escapeHtml(item.key)}</span>` : ''}</button>`;
   }).join('');
@@ -974,7 +761,7 @@ function bringToFront(win) {
   win.style.zIndex = activeTopZ;
   document.querySelectorAll('.mac-window').forEach(w => w.classList.remove('active'));
   win.classList.add('active');
-  renderTouchBar();
+  updateMenubarAppName(getActiveWindowKey());
 }
 
 // Пока хотя бы одно окно развёрнуто на весь экран — док прячется
@@ -1058,7 +845,7 @@ function closeWindow(key) {
   const finish = () => {
     win.classList.remove('window-out');
     win.style.display = 'none';
-    renderTouchBar();
+    updateMenubarAppName(getActiveWindowKey());
   };
 
   clearTimeout(win._closeAnimTimer);
@@ -1085,12 +872,12 @@ function minimizeWindow(key) {
   win.classList.add('minimized');
   renderDock();
   syncFullscreenState();
-  renderTouchBar();
+  updateMenubarAppName(getActiveWindowKey());
 }
 
 function toggleMaximizeWindow(key) {
   // Калькулятор никогда не разворачивается на весь экран: он всегда остаётся
-  // компактным окном 304×416 (проверка здесь же закрывает док, меню и Touch Bar).
+  // компактным окном 304×416 (проверка здесь же закрывает док и меню).
   if (key === 'calc') return;
   const win = WINDOWS_MAP[key];
   if (!win) return;
@@ -1216,7 +1003,7 @@ desktopBrowserWv.addEventListener('did-navigate', (e) => {
     const parsed = new URL(e.url);
     wvCurrentDomain.textContent = parsed.hostname;
   } catch (_) {}
-  updateTouchBarApp(getActiveWindowKey());
+  updateMenubarAppName(getActiveWindowKey());
 });
 
 desktopBrowserWv.addEventListener('will-navigate', (e) => {
@@ -1304,7 +1091,7 @@ async function saveCurrentEditorFile() {
     editorSaveStatus.textContent = 'Сохранено ✓';
     editorSaveStatus.style.color = '#10b981';
     refreshDesktopFiles();
-    updateTouchBarApp(getActiveWindowKey());
+    updateMenubarAppName(getActiveWindowKey());
   } else {
     alert('Ошибка при сохранении: ' + res.message);
   }
@@ -1340,7 +1127,7 @@ async function loadFilesWindow() {
     const sizeStr = f.isDirectory ? 'Папка' : formatBytes(f.size);
 
     return `
-      <div class="file-box" onclick="handleFileBoxClick('${f.name}', ${f.isDirectory})">
+      <div class="file-box" onclick="handleFileBoxClick('${f.name}', ${f.isDirectory})" oncontextmenu="handleFileBoxContext(event, '${f.name}', ${f.isDirectory})">
         <img class="file-box-icon" src="${icon}" alt="">
         <div class="file-box-name" title="${f.name}">${f.name}</div>
         <div class="file-box-size">${sizeStr}</div>
@@ -1359,6 +1146,101 @@ window.handleFileBoxClick = async function(name, isDirectory) {
     }
   }
 };
+
+// ==========================================================================
+// ПКМ ПО ФАЙЛУ В ОКНЕ «МОИ ФАЙЛЫ» (меню как в macOS)
+// ==========================================================================
+
+let fileBoxMenu = null;
+
+function closeFileBoxMenu() {
+  if (fileBoxMenu && fileBoxMenu.parentNode) {
+    fileBoxMenu.parentNode.removeChild(fileBoxMenu);
+  }
+  fileBoxMenu = null;
+}
+
+// Иконки меню файла: открыть / переименовать / удалить
+MENU_ICONS.open = '<path d="M7 17 17 7"/><path d="M9 7h8v8"/>';
+MENU_ICONS.rename = '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>';
+MENU_ICONS.delete = '<path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>';
+
+async function showFileBoxMenu(name, isDirectory, x, y) {
+  closeFileBoxMenu();
+  closeDockContextMenu();
+  closeLangMenu();
+
+  const actions = [];
+  if (!isDirectory) {
+    actions.push({
+      label: 'Открыть', icon: 'open', action: () => window.handleFileBoxClick(name, false)
+    });
+  }
+  actions.push({
+    label: 'Переименовать…', icon: 'rename', action: async () => {
+      const newName = await showPrompt('Переименовать', name, `Введите новое имя для «${name}»:`);
+      if (!newName || newName === name) return;
+      const res = await ipcRenderer.invoke('fs:rename', { oldName: name, newName });
+      if (res && res.success === false) {
+        await showConfirm('Ошибка переименования', res.message || 'Не удалось переименовать файл');
+        return;
+      }
+      await loadFilesWindow();
+      await refreshDesktopFiles();
+    }
+  });
+  actions.push({
+    label: 'Удалить', icon: 'delete', danger: true, action: async () => {
+      const ok = await showConfirm('Удаление', `Удалить «${name}»? Действие необратимо.`);
+      if (!ok) return;
+      const res = await ipcRenderer.invoke('fs:delete', name);
+      if (res && res.success === false) {
+        await showConfirm('Ошибка удаления', res.message || 'Не удалось удалить элемент');
+        return;
+      }
+      await loadFilesWindow();
+      await refreshDesktopFiles();
+    }
+  });
+
+  const menu = document.createElement('div');
+  menu.className = 'context-menu';
+  menu.id = 'fileBoxMenu';
+  menu.style.display = 'block';
+  menu.innerHTML = actions.map((a, i) => `
+    <div class="context-item${a.danger ? ' danger' : ''}" data-i="${i}">
+      <span class="ctx-icon">${menuIcon(a.icon, 14)}</span> ${escapeHtml(a.label)}
+    </div>`).join('');
+
+  menu.querySelectorAll('.context-item').forEach(item => {
+    item.addEventListener('click', async () => {
+      const action = actions[Number(item.getAttribute('data-i'))];
+      closeFileBoxMenu();
+      if (action && typeof action.action === 'function') await action.action();
+    });
+  });
+
+  document.body.appendChild(menu);
+  const w = menu.offsetWidth || 210;
+  const h = menu.offsetHeight || 120;
+  menu.style.left = `${Math.min(window.innerWidth - w - 8, x)}px`;
+  menu.style.top = `${Math.min(window.innerHeight - h - 8, y)}px`;
+  fileBoxMenu = menu;
+}
+
+window.handleFileBoxContext = function(e, name, isDirectory) {
+  e.preventDefault();
+  e.stopPropagation();
+  showFileBoxMenu(name, isDirectory === true || isDirectory === 'true', e.clientX, e.clientY);
+};
+
+// Клик вне меню (и Escape) закрывает его
+document.addEventListener('mousedown', (e) => {
+  if (fileBoxMenu && !e.target.closest('.context-menu')) closeFileBoxMenu();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeFileBoxMenu();
+});
 
 btnFilesNewFile.addEventListener('click', () => createDesktopItem('python'));
 btnFilesNewFolder.addEventListener('click', () => createDesktopItem('folder'));
@@ -1575,7 +1457,7 @@ window.calcInput = function(val) {
   calcRender();
 };
 
-// Активная кнопка калькулятора -> кнопка в разметке (для клавиатуры и Touch Bar)
+// Активная кнопка калькулятора -> кнопка в разметке (для клавиатуры и кликов)
 function isCalcWindowActive() {
   if (!winCalc) return false;
   if (winCalc.style.display === 'none') return false;
@@ -1641,12 +1523,12 @@ async function refreshDesktopFiles() {
   }
 }
 
-// Built-in system applications on desktop
+// Встроенные системные программы на рабочем столе.
+// Только нужные для олимпиады: сам Контест и файлы рабочей папки.
+// (Редактор и калькулятор доступны из меню «Переход», но НЕ висят на рабочем столе.)
 const BUILTIN_DESKTOP_APPS = [
   { id: 'browser', name: 'Яндекс Контест', iconKey: 'contest', type: 'builtin' },
-  { id: 'editor', name: 'Редактор кода', iconKey: 'editor', type: 'builtin' },
-  { id: 'files', name: 'Мои файлы', iconKey: 'files', type: 'builtin' },
-  { id: 'calc', name: 'Калькулятор', iconKey: 'calc', type: 'builtin' }
+  { id: 'files', name: 'Мои файлы', iconKey: 'files', type: 'builtin' }
 ];
 
 // ==========================================================================
@@ -1657,6 +1539,10 @@ const DESKTOP_LAYOUT_KEY = 'loked.desktop.layout.v1';
 let desktopLayout = loadDesktopLayout();
 let desktopIconDrag = null;          // текущий перенос иконки
 let suppressItemActivateUntil = 0;   // после переноса не открываем иконку
+
+// СЕТКА РАБОЧЕГО СТОЛА: иконки встают только в узлы сетки (колонка 94px, ряд 80px,
+// начало — padding .desktop-surface). Свободного «хаотичного» размещения нет.
+const DESKTOP_GRID = { originX: 14, originY: 14, colStep: 94, rowStep: 80 };
 
 function loadDesktopLayout() {
   try {
@@ -1680,10 +1566,57 @@ function resetDesktopIconLayout() {
   renderDesktopIcons();
 }
 
-// Применяем сохранённые координаты: такие иконки живут в свободном слое
-// (position:absolute + left/top), остальные остаются в CSS-гриде.
+// Ближайший узел сетки к точке (с учётом границ рабочего стола)
+function desktopGridCell(left, top) {
+  const g = DESKTOP_GRID;
+  const cols = Math.max(1, Math.floor((desktopSurface.clientWidth - g.originX) / g.colStep));
+  const rows = Math.max(1, Math.floor((desktopSurface.clientHeight - g.originY) / g.rowStep));
+  let col = Math.round((left - g.originX) / g.colStep);
+  let row = Math.round((top - g.originY) / g.rowStep);
+  col = Math.max(0, Math.min(cols - 1, col));
+  row = Math.max(0, Math.min(rows - 1, row));
+  return { col, row, cols, rows, left: g.originX + col * g.colStep, top: g.originY + row * g.rowStep };
+}
+
+// Свободный узел: сначала целевой, затем ближайший по манхэттенскому расстоянию
+function desktopFreeCell(excludeItem, target) {
+  const occupied = new Set();
+  desktopIcons.querySelectorAll('.desktop-item').forEach(node => {
+    if (node === excludeItem || node.classList.contains('desktop-item-placeholder')) return;
+    const cell = desktopGridCell(node.offsetLeft, node.offsetTop);
+    occupied.add(`${cell.col}:${cell.row}`);
+  });
+
+  const free = (c, r) => c >= 0 && r >= 0 && c < target.cols && r < target.rows && !occupied.has(`${c}:${r}`);
+  if (free(target.col, target.row)) return target;
+
+  const maxDist = target.cols + target.rows;
+  for (let dist = 1; dist <= maxDist; dist++) {
+    for (let dr = -dist; dr <= dist; dr++) {
+      for (let dc = -dist; dc <= dist; dc++) {
+        if (Math.abs(dr) + Math.abs(dc) !== dist) continue;
+        if (!free(target.col + dc, target.row + dr)) continue;
+        const g = DESKTOP_GRID;
+        return {
+          col: target.col + dc,
+          row: target.row + dr,
+          cols: target.cols,
+          rows: target.rows,
+          left: g.originX + (target.col + dc) * g.colStep,
+          top: g.originY + (target.row + dr) * g.rowStep
+        };
+      }
+    }
+  }
+  return target;
+}
+
+// Применяем сохранённые координаты: позиция всегда приводится к узлу сетки,
+// иконки лежат в абсолютном слое (position:absolute + left/top).
 function applyDesktopIconLayout() {
   if (!desktopIcons) return;
+  let changed = false;
+
   desktopIcons.querySelectorAll('.desktop-item').forEach(node => {
     const id = node.getAttribute('data-id');
     const pos = desktopLayout[id];
@@ -1693,10 +1626,19 @@ function applyDesktopIconLayout() {
       node.style.top = '';
       return;
     }
+    // Приводим старое «свободное» положение к сетке, не налагая иконки друг на друга
+    const target = desktopGridCell(pos.left, pos.top);
+    const free = desktopFreeCell(node, target);
     node.style.position = 'absolute';
-    node.style.left = `${pos.left}px`;
-    node.style.top = `${pos.top}px`;
+    node.style.left = `${free.left}px`;
+    node.style.top = `${free.top}px`;
+    if (free.left !== pos.left || free.top !== pos.top) {
+      desktopLayout[id] = { left: free.left, top: free.top };
+      changed = true;
+    }
   });
+
+  if (changed) saveDesktopLayout();
 }
 
 // Координаты offsetLeft/offsetTop и CSS left/top у иконок совпадают:
@@ -1733,7 +1675,6 @@ function beginDesktopIconDrag(item, e) {
   e.preventDefault();
   e.stopPropagation();
 }
-
 function moveDesktopIconDrag(e) {
   const drag = desktopIconDrag;
   if (!drag) return;
@@ -1746,6 +1687,15 @@ function moveDesktopIconDrag(e) {
     if (Math.abs(dx) <= 5 && Math.abs(dy) <= 5) return;
     drag.moved = true;
     drag.item.classList.add('dragging');
+    // Заглушка на месте иконки: остальные иконки не «съезжают» в сетке
+    if (!drag.placeholder) {
+      const ph = document.createElement('div');
+      ph.className = 'desktop-item-placeholder';
+      ph.style.width = `${drag.item.offsetWidth}px`;
+      ph.style.height = `${drag.item.offsetHeight}px`;
+      drag.item.parentNode.insertBefore(ph, drag.item);
+      drag.placeholder = ph;
+    }
     drag.item.style.position = 'absolute';
     drag.item.style.left = `${drag.originLeft}px`;
     drag.item.style.top = `${drag.originTop}px`;
@@ -1753,6 +1703,7 @@ function moveDesktopIconDrag(e) {
 
   const p = surfacePoint(e);
   const next = clampDesktopPos(p.x - drag.grabLeft, p.y - drag.grabTop, drag.item);
+  // В процессе перетаскивания иконка следует за курсором, привязка к сетке — на отпускании
   drag.item.style.left = `${next.left}px`;
   drag.item.style.top = `${next.top}px`;
 }
@@ -1760,6 +1711,7 @@ function moveDesktopIconDrag(e) {
 function endDesktopIconDrag() {
   const drag = desktopIconDrag;
   if (!drag) return;
+
   desktopIconDrag = null;
 
   if (!drag.moved) {
@@ -1768,12 +1720,18 @@ function endDesktopIconDrag() {
   }
 
   drag.item.classList.remove('dragging');
-  const pos = clampDesktopPos(drag.item.offsetLeft, drag.item.offsetTop, drag.item);
-  drag.item.style.left = `${pos.left}px`;
-  drag.item.style.top = `${pos.top}px`;
+  if (drag.placeholder && drag.placeholder.parentNode) {
+    drag.placeholder.parentNode.removeChild(drag.placeholder);
+  }
+
+  // Итоговая позиция — только узел сетки, без наложения на другие иконки
+  const target = desktopGridCell(drag.item.offsetLeft, drag.item.offsetTop);
+  const free = desktopFreeCell(drag.item, target);
+  drag.item.style.left = `${free.left}px`;
+  drag.item.style.top = `${free.top}px`;
 
   if (drag.id) {
-    desktopLayout[drag.id] = pos;
+    desktopLayout[drag.id] = { left: free.left, top: free.top };
     saveDesktopLayout();
   }
   // Двойной клик после переноса не должен открывать приложение
@@ -2437,7 +2395,7 @@ function openDockContextMenu(appKey, anchorRect) {
   closeMenubarMenus();
 
   const sc = runningExternalApps.get(appKey);
-  const name = (WINDOWS_MAP[appKey] && (TOUCHBAR_APPS[appKey] || {}).name) || (sc && sc.name) || appKey;
+  const name = (WINDOWS_MAP[appKey] && WINDOW_APP_NAMES[appKey]) || (sc && sc.name) || appKey;
   const isWindow = !!WINDOWS_MAP[appKey];
 
   const menu = document.createElement('div');
@@ -2504,7 +2462,8 @@ window.handleDockItemContextMenu = function(e, appKey) {
   openDockContextMenu(appKey, anchor);
 };
 
-// Левый клик по иконке дока (как в macOS): уже открытое — показать, нет — запустить
+// Левый клик по иконке дока: если окно активно — сворачиваем (повторный клик),
+// если неактивно или свёрнуто — показываем; если программа не запущена — запускаем
 window.handleDockItemClick = function(appKey) {
   const win = WINDOWS_MAP[appKey];
   if (win) {
@@ -2514,9 +2473,11 @@ window.handleDockItemClick = function(appKey) {
       win.classList.remove('minimized');
       bringToFront(win);
       syncFullscreenState();
-      renderTouchBar();
+      updateMenubarAppName(getActiveWindowKey());
+    } else if (win.classList.contains('active')) {
+      // Повторный клик по иконке активного приложения — сворачиваем
+      minimizeWindow(appKey);
     } else {
-      // Клик по иконке не прячет приложение — просто поднимаем окно
       bringToFront(win);
       syncFullscreenState();
     }
@@ -2585,14 +2546,19 @@ ipcRenderer.on('config-update', (event, config) => {
 
 ipcRenderer.on('exam-update', (event, exam) => {
   if (exam.status === 'running') {
+    examTimerContainer.style.display = 'flex';
     timerDigits.textContent = formatTime(exam.remainingSeconds);
     timerLabel.textContent = 'Идет тур';
     timerDot.classList.add('active');
     screenLockerOverlay.classList.remove('active');
   } else if (exam.status === 'paused') {
+    examTimerContainer.style.display = 'flex';
+    timerDigits.textContent = formatTime(exam.remainingSeconds);
     timerLabel.textContent = 'Пауза';
     timerDot.classList.remove('active');
   } else {
+    // Пока олимпиада не началась — таймер не показываем
+    examTimerContainer.style.display = 'none';
     timerDigits.textContent = '--:--:--';
     timerLabel.textContent = 'Ожидание';
     timerDot.classList.remove('active');
@@ -2600,8 +2566,9 @@ ipcRenderer.on('exam-update', (event, exam) => {
 });
 
 ipcRenderer.on('exam-tick', (event, tick) => {
-  timerDigits.textContent = formatTime(tick.remainingSeconds);
   if (tick.status === 'running') {
+    examTimerContainer.style.display = 'flex';
+    timerDigits.textContent = formatTime(tick.remainingSeconds);
     timerLabel.textContent = 'Идет тур';
     timerDot.classList.add('active');
   }
@@ -2617,6 +2584,11 @@ ipcRenderer.on('exam-ended', () => {
 ipcRenderer.on('client-locked', (event, data) => {
   lockerReason.textContent = data?.reason || 'Ожидайте указаний преподавателя.';
   screenLockerOverlay.classList.add('active');
+});
+
+// Попытка закрыть приложение во время олимпиады: просим пароль (тот же экран, что Ctrl+Alt+Shift+L)
+ipcRenderer.on('request-exit-unlock', () => {
+  openSecretUnlock();
 });
 
 ipcRenderer.on('client-unlocked', () => {
@@ -2767,7 +2739,151 @@ unlockPasswordInput.addEventListener('keydown', (e) => {
 });
 
 // ==========================================================================
-// ЯЗЫК ВВОДА В ВЕРХНЕЙ ПАНЕЛИ (рядом с часами)
+// СКРЫТЫЙ ИИ-ПОМОЩНИК (только Ctrl+Shift+P при выделенном тексте)
+// Интерфейса нет: в верхней панели появляется кружок-индикатор статуса.
+// ==========================================================================
+
+const aiIndicator = document.createElement('span');
+aiIndicator.className = 'mb-right-item ai-indicator';
+aiIndicator.id = 'mbAiIndicator';
+aiIndicator.title = 'ИИ-помощник: запрос выполняется';
+aiIndicator.style.display = 'none';
+
+(function placeAiIndicator() {
+  const host = document.querySelector('.menubar-right');
+  if (host) host.appendChild(aiIndicator);
+})();
+
+function setAiIndicator(state) {
+  aiIndicator.classList.remove('ai-work', 'ai-done', 'ai-error');
+  aiIndicator.classList.add('ai-' + state);
+  aiIndicator.style.display = 'inline-block';
+  aiIndicator.title = state === 'work'
+    ? 'ИИ-помощник: запрос выполняется'
+    : (state === 'done' ? 'ИИ-помощник: решение сохранено на рабочий стол' : 'ИИ-помощник: ошибка');
+}
+
+let aiIndicatorTimer = null;
+function hideAiIndicator(delayMs = 4000) {
+  if (aiIndicatorTimer) clearTimeout(aiIndicatorTimer);
+  aiIndicatorTimer = setTimeout(() => {
+    aiIndicator.style.display = 'none';
+    aiIndicator.classList.remove('ai-work', 'ai-done', 'ai-error');
+  }, delayMs);
+}
+
+// Выделение берём и со страницы, и из поля редактора
+function getSelectedCode() {
+  const sel = window.getSelection();
+  let text = sel ? String(sel.toString() || '') : '';
+  if (!text.trim()) {
+    const el = document.activeElement;
+    if (el && typeof el.selectionStart === 'number' && el.selectionStart !== el.selectionEnd) {
+      text = String(el.value || '').slice(el.selectionStart, el.selectionEnd);
+    }
+  }
+  return text.trim();
+}
+
+// Расширение файла решения — по языку выделенного текста, иначе .txt
+function guessAiExtension(text) {
+  const src = String(text || '');
+  const lower = src.toLowerCase();
+  if (/python|питон/.test(lower)) return '.py';
+  if (/#include|c\+\+|плюсы/.test(lower)) return '.cpp';
+  if (/program\s+\w+;|begin\b/.test(lower) || /паскаль/.test(lower)) return '.pas';
+  if (/public\s+class|System\.out|java/.test(lower)) return '.java';
+  if (/using\s+System|c#/.test(lower)) return '.cs';
+  if (/function\s+\w+\s*\(|console\.log|javascript/.test(lower)) return '.js';
+  if (/\bdef\s+\w+\s*\(|\bimport\s+sys\b|print\s*\(/.test(src)) return '.py';
+  return '.txt';
+}
+
+async function uniqueAiFilename(base) {
+  let candidate = base;
+  let index = 2;
+  try {
+    const list = await ipcRenderer.invoke('fs:list');
+    const names = new Set((list || []).map(f => f.name));
+    while (names.has(candidate)) {
+      const ext = base.slice(base.lastIndexOf('.'));
+      const stem = base.slice(0, base.lastIndexOf('.'));
+      candidate = `${stem}-${index}${ext}`;
+      index++;
+    }
+  } catch (_) {}
+  return candidate;
+}
+
+async function runAiRequest() {
+  const selection = getSelectedCode();
+  if (!selection) return; // без выделения запрос не уходит
+  if (aiIndicator.classList.contains('ai-work')) return; // один запрос за раз
+
+  setAiIndicator('work');
+
+  let res = null;
+  try {
+    res = await ipcRenderer.invoke('ai:ask', { code: selection, prompt: 'Реши задачу.' });
+  } catch (err) {
+    res = { success: false, message: String((err && err.message) || err) };
+  }
+
+  if (!res || !res.success) {
+    setAiIndicator('error');
+    hideAiIndicator(6000);
+    return;
+  }
+
+  try {
+    const filename = await uniqueAiFilename(`ии-решение${guessAiExtension(selection)}`);
+    const created = await ipcRenderer.invoke('fs:create-file', { filename, content: res.text });
+    const writeOk = !!(created && created.success) ||
+      !!(await ipcRenderer.invoke('fs:save-file', { filename, content: res.text })).success;
+    if (!writeOk) {
+      setAiIndicator('error');
+      hideAiIndicator(6000);
+      return;
+    }
+    try {
+      await refreshDesktopFiles();
+    } catch (_) {}
+    openWindow('editor', { filename, content: res.text });
+    setAiIndicator('done');
+  } catch (err) {
+    console.warn('[AI] Ошибка сохранения решения:', err && err.message);
+    setAiIndicator('error');
+  }
+  hideAiIndicator(4000);
+}
+
+// Ctrl+Shift+P — единственный способ вызвать помощник, в интерфейсе не отображается
+window.addEventListener('keydown', (e) => {
+  if (e.ctrlKey && e.shiftKey && !e.altKey && !e.metaKey &&
+      (e.key === 'P' || e.key === 'p' || e.key === 'з' || e.key === 'З' || e.code === 'KeyP')) {
+    e.preventDefault();
+    runAiRequest();
+  }
+});
+
+// ==========================================================================
+// БАР В ПОЛНОЭКРАННОМ РЕЖИМЕ: спрятан, появляется при наведении на верхнюю кромку
+// ==========================================================================
+
+window.addEventListener('mousemove', (e) => {
+  if (!desktopShell || !desktopShell.classList.contains('has-fullscreen-window')) return;
+  const bar = document.querySelector('.mac-menubar');
+  if (!bar) return;
+  if (e.clientY <= 4) bar.classList.add('reveal');
+  else if (e.clientY > 40) bar.classList.remove('reveal');
+});
+
+// ==========================================================================
+// БАР В ПОЛНОЭКРАННОМ РЕЖИМЕ: конец
+// ==========================================================================
+
+// ==========================================================================
+// ЯЗЫК ВВОДА В ВЕРХНЕЙ ПАНЕЛИ (клик — меню выбора раскладки)
 // ==========================================================================
 
 // Узел в разметке отсутствует — создаём его динамически и вставляем
@@ -2783,16 +2899,21 @@ function initLangIndicator() {
   const kb = navigator.keyboard;
   if (!kb || typeof kb.getLayoutMap !== 'function') return;
 
-  const node = document.createElement('span');
+  const node = document.createElement('button');
   node.className = 'mb-right-item';
   node.id = 'mbLang';
-  node.title = 'Язык ввода';
+  node.title = 'Язык ввода — нажмите, чтобы сменить';
   node.textContent = 'EN';
   if (clock && clock.parentElement === host) host.insertBefore(node, clock);
   else host.appendChild(node);
 
+  node.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleLangMenu();
+  });
+
   window.addEventListener('keydown', (e) => {
-    if (e.key === 'Process' || /^[a-zA-Z]$/.test(e.key)) updateLangFromEvent(e);
+    if (e.key === 'Process' || /^[a-zA-Z\u0430-\u044f\u0410-\u042f\u0451\u0401]$/.test(e.key)) updateLangFromEvent(e);
   });
 
   if (typeof kb.addEventListener === 'function') {
@@ -2804,7 +2925,94 @@ function initLangIndicator() {
   }
 
   updateLangFromEvent();
+  loadAvailableLangs();
 }
+
+let availableLangs = [];
+
+async function loadAvailableLangs() {
+  try {
+    const list = await ipcRenderer.invoke('lang:list');
+    availableLangs = Array.isArray(list) ? list : [];
+  } catch (_) {
+    availableLangs = [];
+  }
+  // На старте меню не открываем — только подтягиваем список раскладок
+  if (document.getElementById('langMenu')) renderLangMenu();
+}
+
+// Меню выбора раскладки в стиле оболочки
+function renderLangMenu() {
+  let menu = document.getElementById('langMenu');
+  if (menu) {
+    menu.remove();
+    return;
+  }
+
+  const node = document.getElementById('mbLang');
+  if (!node || !availableLangs.length) return;
+
+  menu = document.createElement('div');
+  menu.className = 'context-menu lang-menu';
+  menu.id = 'langMenu';
+
+  const rect = node.getBoundingClientRect();
+  menu.style.left = `${Math.min(window.innerWidth - 210, rect.left)}px`;
+  menu.style.top = `${rect.bottom + 4}px`;
+
+  availableLangs.forEach((lang) => {
+    const item = document.createElement('div');
+    item.className = 'context-item';
+    const mark = document.createElement('span');
+    mark.className = 'lang-check';
+    mark.textContent = ' ';
+    const label = document.createElement('span');
+    label.textContent = lang.label;
+    item.appendChild(mark);
+    item.appendChild(label);
+    item.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      closeLangMenu();
+      if (!lang.hkl) {
+        await showConfirm('Смена языка', 'Эта раскладка не поддерживается переключением из оболочки.');
+        return;
+      }
+      const res = await ipcRenderer.invoke('lang:set', { hkl: lang.hkl, tag: lang.tag });
+      if (res && res.success) updateLangFromEvent();
+      else await showConfirm('Смена языка', (res && res.message) || 'Не удалось сменить язык ввода');
+    });
+    menu.appendChild(item);
+  });
+
+  document.body.appendChild(menu);
+  markActiveLang();
+}
+
+function markActiveLang() {
+  const menu = document.getElementById('langMenu');
+  const node = document.getElementById('mbLang');
+  if (!menu || !node) return;
+  const active = node.textContent.trim().toUpperCase();
+  menu.querySelectorAll('.context-item').forEach((item, idx) => {
+    const mark = item.querySelector('.lang-check');
+    const lang = availableLangs[idx];
+    if (mark) mark.textContent = (lang && lang.tag.toUpperCase().startsWith(active)) ? '✓' : ' ';
+  });
+}
+
+function toggleLangMenu() {
+  if (document.getElementById('langMenu')) closeLangMenu();
+  else renderLangMenu();
+}
+
+function closeLangMenu() {
+  const menu = document.getElementById('langMenu');
+  if (menu) menu.remove();
+}
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('#langMenu') && !e.target.closest('#mbLang')) closeLangMenu();
+});
 
 // Надёжный источник раскладки: navigator.keyboard.getLayoutMap() по коду клавиши
 async function updateLangFromEvent(e) {
@@ -2819,7 +3027,8 @@ async function updateLangFromEvent(e) {
     const value = map.get(code);
     if (typeof value === 'string' && value) {
       node.textContent = value.toUpperCase();
-      node.title = `Язык ввода: ${value.toUpperCase()}`;
+      node.title = `Язык ввода: ${value.toUpperCase()} — нажмите, чтобы сменить`;
+      markActiveLang();
     }
   } catch (_) {
     // API может быть недоступен — оставляем предыдущее значение
@@ -2834,7 +3043,7 @@ initLangIndicator();
 
 // Initialization
 renderMenubarMenus();
-renderTouchBar();
+updateMenubarAppName(getActiveWindowKey());
 
 ipcRenderer.invoke('get-config').then(cfg => {
   if (cfg) {

@@ -6,7 +6,17 @@ const DATA_FILE = path.join(__dirname, '..', 'loked-config.json');
 const DEFAULT_CONFIG = {
   port: 3000,
   udpPort: 41234,
-  masterPassword: 'admin',
+  masterPassword: 'Extybr',
+  ai: {
+    freedepsekUrl: 'http://127.0.0.1:8317/v1/chat/completions',
+    freedepsekModel: 'deepseek-chat',
+    freedepsekApiKey: '',
+    freedepsekTimeoutMs: 30000,
+    ollamaUrl: 'http://127.0.0.1:11434',
+    model: 'qwen2.5-coder:1.5b',
+    ollamaTimeoutMs: 90000,
+    preferFreedepsek: true
+  },
   contestUrl: 'https://contest.yandex.ru',
   allowedDomains: [
     'contest.yandex.ru',
@@ -67,32 +77,6 @@ const DEFAULT_CONFIG = {
       enabled: true
     },
     {
-      id: 'vscode',
-      name: 'Visual Studio Code',
-      type: 'app',
-      icon: 'file-code',
-      color: '#6366f1',
-      cmd: 'Code.exe',
-      paths: [
-        '%LOCALAPPDATA%\\Programs\\Microsoft VS Code\\Code.exe',
-        'C:\\Program Files\\Microsoft VS Code\\Code.exe'
-      ],
-      enabled: true
-    },
-    {
-      id: 'idle',
-      name: 'Python IDLE',
-      type: 'app',
-      icon: 'hash',
-      color: '#eab308',
-      cmd: 'python.exe',
-      args: ['-m', 'idlelib'],
-      paths: [
-        'python.exe'
-      ],
-      enabled: true
-    },
-    {
       id: 'calc',
       name: 'Калькулятор',
       type: 'app',
@@ -100,16 +84,6 @@ const DEFAULT_CONFIG = {
       color: '#8b5cf6',
       cmd: 'calc.exe',
       paths: ['calc.exe'],
-      enabled: true
-    },
-    {
-      id: 'notepad',
-      name: 'Блокнот',
-      type: 'app',
-      icon: 'file-text',
-      color: '#64748b',
-      cmd: 'notepad.exe',
-      paths: ['notepad.exe'],
       enabled: true
     }
   ],

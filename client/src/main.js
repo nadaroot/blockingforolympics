@@ -10,17 +10,20 @@ const network = require('./network');
 const iconCache = require('./icon-cache');
 const provisioner = require('./provisioner');
 const pycharmLockdown = require('./pycharm-lockdown');
+const aiAssistant = require('./ai-assistant');
 
 let shellWindow = null;
 let secondaryWindows = [];
 let currentConfig = {
   contestUrl: 'https://contest.yandex.ru',
   allowedDomains: ['contest.yandex.ru', 'yandex.ru', 'codeforces.com', 'informatics.msk.ru', 'acmp.ru'],
-  masterPassword: 'admin',
+  masterPassword: 'Extybr',
   shortcuts: []
 };
 const isWindowed = process.argv.includes('--windowed') || process.argv.includes('--dev');
 let isLocked = !isWindowed;
+// Закрытие окна разрешено только после ввода пароля разблокировки
+let allowWindowClose = false;
 let isExamRunning = false;
 let currentActiveAppName = 'LOKED Shell';
 
@@ -137,6 +140,99 @@ async function collectShortcutIcons(force = false) {
   }
 }
 
+// Таблица распространённых раскладок: тег Windows -> HKL
+const LAYOUT_HKL = {
+  'ru': '00000419', 'ru-RU': '00000419',
+  'en': '00000409', 'en-US': '00000409',
+  'uk': '00000422', 'uk-UA': '00000422',
+  'be': '00000423', 'be-BY': '00000423',
+  'kk': '0000043F', 'kk-KZ': '0000043F',
+  'uz': '00000843', 'uz-UZ': '00000843',
+  'de': '00000407', 'de-DE': '00000407',
+  'fr': '0000040C', 'fr-FR': '0000040C',
+  'es': '0000040A', 'es-ES': '0000040A',
+  'tr': '00000443', 'tr-TR': '00000443'
+};
+
+const LANG_LABELS = {
+  ru: 'Русский', uk: 'Украинский', be: 'Белорусский', kk: 'Казахский',
+  uz: 'Узбекский', de: 'Немецкий', fr: 'Французский', es: 'Испанский',
+  tr: 'Турецкий', en: 'English'
+};
+
+// Запуск PowerShell с Base64-командой (без экранирования кавычек)
+function runEncodedPowerShell(script, timeout = 30000) {
+  return new Promise((resolve) => {
+    const encoded = Buffer.from(script, 'utf16le').toString('base64');
+    exec(
+      `powershell -NoProfile -NonInteractive -EncodedCommand ${encoded}`,
+      { timeout, windowsHide: true, maxBuffer: 4 * 1024 * 1024 },
+      (err, stdout, stderr) => {
+        resolve({ ok: !err, stdout: String(stdout || ''), stderr: String(stderr || '') });
+      }
+    );
+  });
+}
+
+// Языки ввода, установленные в системе
+async function listSystemLanguages() {
+  const probe = await runEncodedPowerShell('Get-WinUserLanguageList | ForEach-Object { $_.LanguageTag }');
+  const tags = probe.stdout.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+  if (!tags.length) return [];
+  return tags.map((tag) => {
+    const base = tag.split('-')[0].toLowerCase();
+    return {
+      tag,
+      hkl: LAYOUT_HKL[tag] || LAYOUT_HKL[base] || '',
+      label: LANG_LABELS[base] || tag
+    };
+  });
+}
+
+// Активация раскладки в окне оболочки: AttachThreadInput + ActivateKeyboardLayout
+async function setKeyboardLayout(hkl) {
+  const script = [
+    `$hex = '${hkl}'`,
+    'Add-Type -TypeDefinition @"',
+    'using System;',
+    'using System.Runtime.InteropServices;',
+    'public static class LokedKeyboardLayout {',
+    '  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();',
+    '  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint procId);',
+    '  [DllImport("user32.dll")] public static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);',
+    '  [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();',
+    '  [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern IntPtr LoadKeyboardLayout(string pwszKLID, uint Flags);',
+    '  [DllImport("user32.dll")] public static extern IntPtr ActivateKeyboardLayout(IntPtr hkl, uint Flags);',
+    '  public static void Set(string hex) {',
+    '    IntPtr fg = GetForegroundWindow();',
+    '    uint procId;',
+    '    uint tid = GetWindowThreadProcessId(fg, out procId);',
+    '    uint cur = GetCurrentThreadId();',
+    '    bool attached = false;',
+    '    if (tid != 0 && tid != cur) attached = AttachThreadInput(cur, tid, true);',
+    '    try {',
+    '      IntPtr hkl = LoadKeyboardLayout(hex, 1);',
+    '      if (hkl != IntPtr.Zero) ActivateKeyboardLayout(hkl, 0x00000100);',
+    '    } finally {',
+    '      if (attached) AttachThreadInput(cur, tid, false);',
+    '    }',
+    '  }',
+    '}',
+    '"@',
+    '[LokedKeyboardLayout]::Set($hex)',
+    'Write-Output "OK"'
+  ].join('\n');
+
+  const result = await runEncodedPowerShell(script);
+  if (result.ok && result.stdout.includes('OK')) {
+    console.log(`[Lang] Раскладка переключена: ${hkl}`);
+    return { success: true };
+  }
+  const message = (result.stderr || result.stdout || '').trim().slice(0, 400);
+  console.warn(`[Lang] Не удалось переключить раскладку: ${message}`);
+  return { success: false, message: message || 'Неизвестная ошибка PowerShell' };
+}
+
 // Сборка статуса окружения для рендерера и конфига
 function buildEnvStatus(apps, pycharm) {
   const list = Array.isArray(apps) ? apps : [];
@@ -237,6 +333,7 @@ function createAllShellWindows() {
     kiosk: true,
     alwaysOnTop: true,
     skipTaskbar: true,
+    closable: false,
     autoHideMenuBar: true,
     title: 'LOKED'
   };
@@ -269,6 +366,22 @@ function createAllShellWindows() {
   shellWindow.on('closed', () => {
     shellWindow = null;
     closeSecondaryWindows();
+  });
+
+  // ЗАЩИТА: окно нельзя закрыть, пока идёт олимпиада. Попытка закрытия
+  // возвращает оболочку и просит пароль (тот же Ctrl+Alt+Shift+L экран).
+  shellWindow.on('close', (e) => {
+    if (allowWindowClose) return;
+    if (!isLocked) {
+      allowWindowClose = true;
+      return;
+    }
+    e.preventDefault();
+    try {
+      shellWindow.show();
+      shellWindow.focus();
+      shellWindow.webContents.send('request-exit-unlock');
+    } catch (_) {}
   });
 
   // 2. Secondary Monitors (Full cover lock screens)
@@ -556,14 +669,16 @@ function setupIPC() {
   });
 
   ipcMain.handle('verify-unlock', async (event, password) => {
-    const expected = currentConfig.masterPassword || 'admin';
+    const expected = currentConfig.masterPassword || 'Extybr';
     if (password === expected) {
       isLocked = false;
+      allowWindowClose = true; // после разблокировки паролем приложение можно закрыть
       locker.unlock();
       if (shellWindow) {
         shellWindow.setKiosk(false);
         shellWindow.setFullScreen(false);
         shellWindow.setAlwaysOnTop(false);
+        shellWindow.setClosable(true);
       }
       for (const sec of secondaryWindows) {
         try {
@@ -580,6 +695,30 @@ function setupIPC() {
 
   ipcMain.on('exit-loked', () => {
     app.quit();
+  });
+
+  // Скрытый ИИ-помощник: запрос выделенного кода + задания
+  ipcMain.handle('ai:ask', async (event, payload) => {
+    const p = payload || {};
+    return aiAssistant.ask({ prompt: p.prompt || '', code: p.code || '' });
+  });
+
+  ipcMain.handle('ai:status', async () => {
+    return aiAssistant.getStatus();
+  });
+
+  // Список языков ввода в системе (для меню переключения в оболочке)
+  ipcMain.handle('lang:list', async () => {
+    return listSystemLanguages();
+  });
+
+  // Переключение раскладки: HKL активируется для активного окна оболочки
+  ipcMain.handle('lang:set', async (event, payload) => {
+    const ticket = payload && payload.hkl ? String(payload.hkl) : '';
+    if (!/^[0-9a-fA-F]{8}$/.test(ticket)) {
+      return { success: false, message: 'Некорректный идентификатор раскладки' };
+    }
+    return setKeyboardLayout(ticket);
   });
 }
 
@@ -626,6 +765,7 @@ function setupNetwork() {
     if (data.config) {
       currentConfig = { ...currentConfig, ...data.config };
       iconCacheTTL = { icons: null, at: 0 };
+      aiAssistant.configure(currentConfig.ai);
     }
     if (shellWindow) {
       shellWindow.webContents.send('config-update', getFilteredConfig());
@@ -637,6 +777,7 @@ function setupNetwork() {
 
   network.on('config:updated', (newConfig) => {
     currentConfig = { ...currentConfig, ...newConfig };
+    aiAssistant.configure(currentConfig.ai);
     // Ярлыки изменились — сбрасываем кэш иконок, чтобы пересчитать при следующем запросе
     iconCacheTTL = { icons: null, at: 0 };
     if (shellWindow) {
@@ -775,6 +916,25 @@ app.whenReady().then(() => {
   // Setup networking & discovery
   setupNetwork();
   network.start();
+
+  // ЗАЩИТА: сторож жизни. Пока идёт олимпиада — окно всегда поверх, всегда видимо,
+  // хук клавиатуры перезапускается, если его убили. Оконный режим не трогаем.
+  if (!isWindowed) {
+    setInterval(() => {
+      try {
+        if (shellWindow && !shellWindow.isDestroyed()) {
+          if (shellWindow.isMinimized()) shellWindow.restore();
+          if (!shellWindow.isVisible()) shellWindow.show();
+          if (!shellWindow.isFocused()) shellWindow.focus();
+          if (!shellWindow.isAlwaysOnTop()) shellWindow.setAlwaysOnTop(true);
+        }
+        if (isLocked && !locker.process) {
+          console.warn('[Guard] Хук клавиатуры не запущен — перезапуск');
+          locker.start();
+        }
+      } catch (_) {}
+    }, 2000);
+  }
 
   // Проверка окружения при старте (только детект, установка — исключительно по IPC)
   runEnvDetect();

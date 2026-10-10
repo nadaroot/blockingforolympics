@@ -28,6 +28,7 @@ namespace Loked.Native
         private const int VK_RCONTROL = 0xA3;
         private const int VK_LMENU = 0xA4;
         private const int VK_RMENU = 0xA5;
+        private const int VK_PRINTSCREEN = 0x2C;
 
         private const int LLKHF_ALTDOWN = 0x20;
 
@@ -279,30 +280,49 @@ namespace Loked.Native
                 bool isAltDown = (kbd.flags & LLKHF_ALTDOWN) != 0;
                 bool isCtrlDown = (GetAsyncKeyState(0x11) & 0x8000) != 0; // VK_CONTROL
                 bool isShiftDown = (GetAsyncKeyState(0x10) & 0x8000) != 0; // VK_SHIFT
+                bool isWinDown = (GetAsyncKeyState(VK_LWIN) & 0x8000) != 0 || (GetAsyncKeyState(VK_RWIN) & 0x8000) != 0;
 
-                // 1. Windows Key (Left or Right)
+                // 1. Клавиша Windows (левая или правая) — всегда блок
                 if (vk == VK_LWIN || vk == VK_RWIN)
                 {
                     return (IntPtr)1;
                 }
 
-                // 2. Alt + Tab, Alt + Esc, Alt + Space, Alt + F4
-                if (isAltDown && (vk == VK_TAB || vk == VK_ESCAPE || vk == VK_SPACE || vk == VK_F4))
+                // 2. Любая комбинация с зажатой клавишей Windows (Win+D, Win+E, Win+R,
+                //    Win+L, Win+X, Win+I, Win+P, Win+S, Win+Tab и т.д.) — блок
+                if (isWinDown)
                 {
                     return (IntPtr)1;
                 }
 
-                // 3. Ctrl + Esc (Start Menu)
+                // 3. Alt + Tab / Esc / Space / F4 / PrtSc — переключение окон,
+                //    контекстное меню окна, закрытие окна, скриншот — блок
+                if (isAltDown && (vk == VK_TAB || vk == VK_ESCAPE || vk == VK_SPACE || vk == VK_F4 || vk == VK_PRINTSCREEN))
+                {
+                    return (IntPtr)1;
+                }
+
+                // 4. Ctrl + Esc (меню «Пуск») — блок
                 if (isCtrlDown && vk == VK_ESCAPE)
                 {
                     return (IntPtr)1;
                 }
 
-                // 4. Ctrl + Shift + Esc (Task Manager)
+                // 5. Ctrl + Shift + Esc (Диспетчер задач) — блок
                 if (isCtrlDown && isShiftDown && vk == VK_ESCAPE)
                 {
                     return (IntPtr)1;
                 }
+
+                // 6. Ctrl + Alt + Esc / Alt + Esc покрыты правилом 3 (Alt + Esc)
+                // 7. PrintScreen (одиночный инструмент «Ножницы» и Alt+PrtSc) — блок
+                if (vk == VK_PRINTSCREEN)
+                {
+                    return (IntPtr)1;
+                }
+
+                // Исключение: секретная разблокировка Ctrl+Alt+Shift+L не затрагивается
+                // ни одним правилом (буква L без Win/Alt+Esc/F4 пропускается).
             }
 
             return CallNextHookEx(_hookID, nCode, wParam, lParam);
@@ -381,12 +401,70 @@ namespace Loked.Native
                         {
                             key.SetValue("NoWinKeys", 1, RegistryValueKind.DWord);
                             key.SetValue("NoRun", 1, RegistryValueKind.DWord);
+                            key.SetValue("NoClose", 1, RegistryValueKind.DWord);
                         }
                         else
                         {
                             key.DeleteValue("NoWinKeys", false);
                             key.DeleteValue("NoRun", false);
+                            key.DeleteValue("NoClose", false);
                         }
+                    }
+                }
+
+                // Запрет выхода из системы и смены пользователя
+                using (RegistryKey key = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Policies\System"))
+                {
+                    if (key != null)
+                    {
+                        if (apply)
+                        {
+                            key.SetValue("NoLogoff", 1, RegistryValueKind.DWord);
+                            key.SetValue("HideFastUserSwitching", 1, RegistryValueKind.DWord);
+                        }
+                        else
+                        {
+                            key.DeleteValue("NoLogoff", false);
+                            key.DeleteValue("HideFastUserSwitching", false);
+                        }
+                    }
+                }
+
+                // Экран Ctrl+Alt+Del: убираем ВСЕ функции, оставляем только «Отмена».
+                // Экран безопасного внимания сам по себе не удаляется — это уровень Winlogon.
+                if (apply)
+                {
+                    DisableSecureDesktopActions();
+                }
+                else
+                {
+                    RestoreSecureDesktopActions();
+                }
+
+                // Горячие клавиши специальных возможностей (5×Shift, 5×CapsLock, удержание Fn)
+                // иначе на экране блокировки всплывают лишние окна
+                using (RegistryKey key = Registry.CurrentUser.CreateSubKey(@"Control Panel\Accessibility\StickyKeys"))
+                {
+                    if (key != null)
+                    {
+                        if (apply) key.SetValue("Flags", "506", RegistryValueKind.String);
+                        else key.DeleteValue("Flags", false);
+                    }
+                }
+                using (RegistryKey key = Registry.CurrentUser.CreateSubKey(@"Control Panel\Accessibility\ToggleKeys"))
+                {
+                    if (key != null)
+                    {
+                        if (apply) key.SetValue("Flags", "506", RegistryValueKind.String);
+                        else key.DeleteValue("Flags", false);
+                    }
+                }
+                using (RegistryKey key = Registry.CurrentUser.CreateSubKey(@"Control Panel\Accessibility\Keyboard Response"))
+                {
+                    if (key != null)
+                    {
+                        if (apply) key.SetValue("Flags", "506", RegistryValueKind.String);
+                        else key.DeleteValue("Flags", false);
                     }
                 }
             }
@@ -394,6 +472,65 @@ namespace Loked.Native
             {
                 // Registry access might need elevated privileges or standard user policies
                 Console.Error.WriteLine("LOKED_LOCKER:REG_ERR:" + ex.Message);
+            }
+        }
+
+        // Ctrl+Alt+Del — экран Winlogon. Полностью удалить нельзя, но можно обнулить функции:
+        // - Диспетчер задач, Блокировка, Смена пользователя, Выход — политиками выше;
+        // - кнопка «Специальные возможности» (utilman) и SETHC — подменой через IFEO
+        //   (требует прав администратора; без них шаг пропускается).
+        private static readonly string[] SECURE_DESKTOP_TARGETS = { "utilman.exe", "sethc.exe", "osk.exe", "narrator.exe", "magnify.exe" };
+        private const string SECURE_DESKTOP_STUB = @"%windir%\system32\loked-disabled.exe";
+
+        private static void DisableSecureDesktopActions()
+        {
+            try
+            {
+                RegistryKey ifeo = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options", true);
+                if (ifeo == null) ifeo = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options");
+                if (ifeo == null) return;
+                ifeo.Close();
+
+                foreach (string exe in SECURE_DESKTOP_TARGETS)
+                {
+                    using (RegistryKey key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\" + exe))
+                    {
+                        if (key == null) continue;
+                        // Подменяем запуск несуществующим файлом: кнопка безопасного рабочего стола не сработает
+                        key.SetValue("Debugger", SECURE_DESKTOP_STUB, RegistryValueKind.String);
+                    }
+                }
+                Console.Error.WriteLine("LOKED_LOCKER:SECURE_ACTIONS_DISABLED");
+            }
+            catch (Exception ex)
+            {
+                // Нет прав администратора — экран CAD останется с кнопкой «Специальные возможности»,
+                // но все остальные функции уже отключены политиками.
+                Console.Error.WriteLine("LOKED_LOCKER:CAD_IFEO_ERR:" + ex.Message);
+            }
+        }
+
+        private static void RestoreSecureDesktopActions()
+        {
+            try
+            {
+                foreach (string exe in SECURE_DESKTOP_TARGETS)
+                {
+                    using (RegistryKey key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\" + exe, true))
+                    {
+                        if (key == null) continue;
+                        if (string.Equals(Convert.ToString(key.GetValue("Debugger")), SECURE_DESKTOP_STUB, StringComparison.OrdinalIgnoreCase))
+                        {
+                            key.DeleteValue("Debugger", false);
+                        }
+                    }
+                    Registry.LocalMachine.DeleteSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\" + exe, false);
+                }
+                Console.Error.WriteLine("LOKED_LOCKER:SECURE_ACTIONS_RESTORED");
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine("LOKED_LOCKER:CAD_IFEO_RESTORE_ERR:" + ex.Message);
             }
         }
 

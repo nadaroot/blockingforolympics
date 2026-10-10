@@ -11,6 +11,13 @@ const WINGET_TIMEOUT_MS = 15 * 60 * 1000;
 const INSTALL_TIMEOUT_MS = 20 * 60 * 1000;
 const DOWNLOAD_TIMEOUT_MS = 15 * 60 * 1000;
 const PROBE_TIMEOUT_MS = 20000;
+const MODEL_PULL_TIMEOUT_MS = 60 * 60 * 1000;
+const OLLAMA_SETX_TIMEOUT_MS = 20000;
+
+// Скрытый ИИ-помощник: локальный сервер модели (на диске E, как требует владелец проекта)
+const AI_MODEL = 'qwen2.5-coder:1.5b';
+const AI_MODELS_DIR = 'E:\\LOKED\\Ollama\\models';
+const AI_OLLAMA_DIR = 'E:\\LOKED\\Ollama';
 
 function localAppData() {
   return process.env.LOCALAPPDATA || '';
@@ -169,6 +176,25 @@ async function detectPyCharm() {
     if (install) return `${install.version} — ${install.exePath}`;
   } catch (_) {}
   return false;
+}
+
+async function detectOllama() {
+  const exe = firstExisting([
+    path.join(localAppData(), 'Programs', 'Ollama', 'ollama.exe'),
+    path.join(AI_OLLAMA_DIR, 'ollama.exe')
+  ]);
+  if (exe) return exe;
+
+  const probe = await runCommand('ollama', ['--version'], 15000);
+  if (probe.ok && probe.stdout.trim()) return `ollama ${probe.stdout.trim()}`;
+  return false;
+}
+
+// Проверка, что модель уже скачана
+async function isAiModelPresent() {
+  const probe = await runCommand('ollama', ['list'], 60000);
+  if (!probe.ok) return false;
+  return probe.stdout.toLowerCase().includes(AI_MODEL.toLowerCase());
 }
 
 // Каталог требуемых программ для олимпиады
@@ -458,6 +484,70 @@ async function installApp(app, onProgress) {
   }
 }
 
+// Подготовка скрытого ИИ-помощника: сервер Ollama + модель на диске E.
+// Не входит в список олимпиадных программ, чтобы ученики ничего не видели.
+async function ensureAiStack(options = {}) {
+  const opts = options || {};
+  const onProgress = typeof opts.onProgress === 'function' ? opts.onProgress : null;
+  const log = [];
+  const result = { ok: true, ollama: null, model: null, log };
+
+  const ollamaApp = {
+    id: 'ollama',
+    title: 'Ollama (сервер локальной ИИ-модели)',
+    winget: 'Ollama.Ollama',
+    urls: ['https://ollama.com/download/OllamaSetup.exe'],
+    detect: detectOllama,
+    install: { silentArgs: ['/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-'], installerType: 'inno' }
+  };
+
+  reportProgress(onProgress, 'ai_install', 'Установка сервера локальной ИИ-модели', { appId: 'ollama' });
+  try {
+    const outcome = await installApp(ollamaApp, onProgress);
+    result.ollama = { ok: !!outcome.ok, method: outcome.method };
+    for (const line of outcome.log || []) log.push(`[ollama] ${line}`);
+    if (!outcome.ok) {
+      result.ok = false;
+      log.push(`Ollama не установлена: ${outcome.error || 'неизвестная ошибка'}`);
+      return result;
+    }
+  } catch (err) {
+    result.ok = false;
+    result.ollama = { ok: false, method: 'fail' };
+    log.push(`Ollama: непредвиденная ошибка: ${err && err.message}`);
+    return result;
+  }
+
+  // Веса модели складываем на диск E
+  try {
+    process.env.OLLAMA_MODELS = AI_MODELS_DIR;
+    if (!fs.existsSync(AI_MODELS_DIR)) fs.mkdirSync(AI_MODELS_DIR, { recursive: true });
+    log.push(`Каталог моделей: ${AI_MODELS_DIR}`);
+    const setx = await runCommand('setx', ['OLLAMA_MODELS', AI_MODELS_DIR], OLLAMA_SETX_TIMEOUT_MS);
+    log.push(setx.ok ? 'Переменная OLLAMA_MODELS сохранена для пользователя' : 'Не удалось сохранить OLLAMA_MODELS (не критично)');
+  } catch (err) {
+    log.push(`Ошибка каталога моделей: ${err && err.message}`);
+  }
+
+  if (await isAiModelPresent()) {
+    log.push(`Модель ${AI_MODEL} уже загружена`);
+    result.model = { ok: true, present: true };
+    return result;
+  }
+
+  reportProgress(onProgress, 'ai_model', `Загрузка модели ${AI_MODEL}`, { model: AI_MODEL });
+  log.push(`ollama pull ${AI_MODEL}`);
+  const pull = await runCommand('ollama', ['pull', AI_MODEL], MODEL_PULL_TIMEOUT_MS);
+  result.model = { ok: pull.ok && pull.code === 0, present: await isAiModelPresent() };
+  if (!result.model.ok) {
+    result.ok = false;
+    log.push(`Не удалось загрузить модель ${AI_MODEL} (код ${pull.code})`);
+  } else {
+    log.push(`Модель ${AI_MODEL} готова`);
+  }
+  return result;
+}
+
 // Полная подготовка окружения: проверка -> установка -> аудит
 async function ensureEnvironment(options = {}) {
   const opts = options || {};
@@ -547,6 +637,19 @@ async function ensureEnvironment(options = {}) {
     }
 
     report.pycharm = { audit, harden };
+
+    // Скрытый ИИ-помощник: ставим только при явной автоустановке
+    if (opts.autoInstall === true) {
+      reportProgress(onProgress, 'ai_start', 'Подготовка локальной ИИ-модели');
+      try {
+        report.ai = await ensureAiStack({ onProgress });
+        for (const line of report.ai.log || []) console.log(`[Provisioner] [ai] ${line}`);
+        if (!report.ai.ok) report.errors.push('ИИ-помощник: не удалось подготовить локальную модель');
+      } catch (err) {
+        report.errors.push(`Ошибка подготовки ИИ-помощника: ${err && err.message}`);
+      }
+    }
+
     return report;
   } catch (err) {
     const message = String(err && err.message || err);
@@ -558,7 +661,10 @@ async function ensureEnvironment(options = {}) {
 
 module.exports = {
   REQUIRED_APPS,
+  AI_MODEL,
+  AI_MODELS_DIR,
   detectAll,
   installApp,
+  ensureAiStack,
   ensureEnvironment
 };

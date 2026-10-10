@@ -30,7 +30,7 @@
       <div class="menubar-center"></div>
 
       <div class="menubar-right">
-        <div class="exam-timer" id="examTimerContainer">
+        <div class="exam-timer" id="examTimerContainer" style="display:none;">
           <span class="timer-dot" id="timerDot"></span>
           <span class="timer-digits" id="timerDigits">--:--:--</span>
           <span class="timer-label" id="timerLabel">Ожидание</span>
@@ -41,19 +41,6 @@
         <button class="mb-right-item" id="mbClock" title="Дата и время">--:--</button>
       </div>
     </header>
-
-    <!-- Hot zone: наведение на эту полосу показывает Touch Bar -->
-    <div class="touchbar-hotzone" id="touchbarHotzone" title=""></div>
-
-    <!-- macOS-style Touch Bar (hidden by default, appears on hover) -->
-    <section class="touchbar" id="touchBar">
-      <div class="touchbar-inner">
-        <div class="touchbar-group" id="touchBarGroup"></div>
-      </div>
-      <button class="touchbar-toggle" id="btnTouchBarToggle" title="Свернуть Touch Bar">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
-      </button>
-    </section>
 
     <!-- Real Desktop Workspace Surface -->
     <main class="desktop-surface" id="desktopSurface">
@@ -218,72 +205,71 @@
     </section>
   </div>
 
-  <!-- Right-Click Desktop Context Menu (Windows-style) -->
+  <!-- Right-Click Desktop Context Menu (macOS Finder style) -->
   <div class="context-menu" id="desktopContextMenu" style="display:none;">
     <div class="context-item" onclick="openWindow('browser')">
-      <span class="context-icon">🏆</span> Открыть Яндекс Контест
+      <svg class="ctx-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v5h5"/><path d="m9 14 3 3 3-3"/></svg> Открыть Яндекс Контест
     </div>
+    <div class="context-item" onclick="openWindow('editor')">
+      <svg class="ctx-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m18 2-4 4-3-3-9 9 3 3-2 2 3 3 2-2 3 3 9-9-3-3 4-4z"/><path d="M14 6l4 4"/></svg> Редактор кода
+    </div>
+    <div class="context-item" onclick="openWindow('files')">
+      <svg class="ctx-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg> Мои файлы
+    </div>
+    <div class="context-item" onclick="refreshDesktopFiles()">
+      <svg class="ctx-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg> Обновить рабочий стол
+    </div>
+
     <div class="context-separator"></div>
 
     <div class="context-item has-submenu" id="desktopCreateItem">
-      <span class="context-icon">➕</span> Создать
-      <span class="context-arrow">▶</span>
+      <svg class="ctx-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg> Создать
+      <span class="context-arrow">›</span>
       <div class="context-submenu" id="desktopCreateSubmenu">
         <div class="context-item" onclick="createDesktopItem('folder')">
-          <span class="context-icon">📁</span> Папку
+          <svg class="ctx-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg> Папку
         </div>
         <div class="context-separator"></div>
         <div class="context-item" onclick="createDesktopItem('text')">
-          <span class="context-icon">📄</span> Текстовый документ (.txt)
+          <svg class="ctx-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v5h5"/><path d="M9 13h6"/><path d="M9 17h4"/></svg> Текстовый документ (.txt)
         </div>
         <div class="context-item" onclick="createDesktopItem('python')">
-          <span class="context-icon">🐍</span> Файл Python (.py)
+          <svg class="ctx-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m8 16-4-4 4-4"/><path d="m16 8 4 4-4 4"/><path d="m13 5-2 14"/></svg> Файл Python (.py)
         </div>
         <div class="context-item" onclick="createDesktopItem('cpp')">
-          <span class="context-icon">⚡</span> Файл C++ (.cpp)
+          <svg class="ctx-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9v6"/><path d="M15 9v6"/><path d="M7 12h10"/></svg> Файл C++ (.cpp)
         </div>
         <div class="context-item" onclick="createDesktopItem('c')">
-          <span class="context-icon">⚙️</span> Файл C (.c)
+          <svg class="ctx-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M12 8v8"/></svg> Файл C (.c)
         </div>
         <div class="context-item" onclick="createDesktopItem('pascal')">
-          <span class="context-icon">📘</span> Файл Pascal (.pas)
+          <svg class="ctx-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v5h5"/><path d="M9 12h6"/><path d="M9 16h6"/></svg> Файл Pascal (.pas)
         </div>
         <div class="context-item" onclick="createDesktopItem('java')">
-          <span class="context-icon">☕</span> Файл Java (.java)
+          <svg class="ctx-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h12v6a6 6 0 0 1-12 0V8z"/><path d="M16 9h2a3 3 0 0 1 0 6h-1"/><path d="M7 4c1 1 2 1 3 0"/><path d="M10 4c1 1 2 1 3 0"/></svg> Файл Java (.java)
         </div>
         <div class="context-item" onclick="createDesktopItem('csharp')">
-          <span class="context-icon">🎯</span> Файл C# (.cs)
+          <svg class="ctx-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></svg> Файл C# (.cs)
         </div>
         <div class="context-separator"></div>
         <div class="context-item" onclick="createDesktopItem('custom')">
-          <span class="context-icon">✎</span> Файл с любым расширением...
+          <svg class="ctx-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg> Файл с любым расширением…
         </div>
       </div>
-    </div>
-
-    <div class="context-separator"></div>
-    <div class="context-item" onclick="openWindow('editor')">
-      <span class="context-icon">📝</span> Редактор кода
-    </div>
-    <div class="context-item" onclick="openWindow('files')">
-      <span class="context-icon">📂</span> Мои файлы
-    </div>
-    <div class="context-item" onclick="refreshDesktopFiles()">
-      <span class="context-icon">⟳</span> Обновить рабочий стол
     </div>
   </div>
 
   <!-- Right-Click File/Folder Item Context Menu -->
   <div class="context-menu" id="itemContextMenu" style="display:none;">
     <div class="context-item" id="itemCtxOpen">
-      <span class="context-icon">↗</span> Открыть
+      <svg class="ctx-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7"/><path d="M9 7h8v8"/></svg> Открыть
     </div>
     <div class="context-item" id="itemCtxRename">
-      <span class="context-icon">✎</span> Переименовать
+      <svg class="ctx-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg> Переименовать
     </div>
     <div class="context-separator"></div>
     <div class="context-item danger" id="itemCtxDelete">
-      <span class="context-icon">✕</span> Удалить
+      <svg class="ctx-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg> Удалить
     </div>
   </div>
 

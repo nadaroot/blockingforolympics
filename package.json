@@ -1,6 +1,6 @@
-{
+﻿{
   "name": "loked",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "LOKED - Locked Olympiad Kiosk Environment",
   "main": "server/src/index.js",
   "scripts": {

@@ -39,8 +39,10 @@ client/                      # Клиент для участников
     icon-cache.js            # Иконки из .exe + кэш + веб-фолбэк
     provisioner.js           # Установка/проверка олимпиадных программ
     pycharm-lockdown.js      # PyCharm без ИИ и плагинов + аудит
+    ai-assistant.js          # Скрытый ИИ-помощник (freedepsek → Ollama qwen2.5-coder:1.5b)
     browser/                 # Страница безопасного браузера (резерв)
-    shell/                   # Оболочка рабочего стола: index.html, shell.css, shell.js
+    shell/                     # Оболочка рабочего стола: index.html, shell.css, shell.js
+                               # + assets/wallpaper.jpg — фото-обои (cover, через CSS .desktop-shell)
 server/src/                  # Express + Socket.IO + приём стримов экранов
   public/                    # Админка учителя (веб)
 admin-desktop/main.js        # Electron-оболочка админки
@@ -81,39 +83,87 @@ npm run start:preview             # http://127.0.0.1:4888
 | `/?win=<key>&restore=1` | открыть окно и свернуть его в обычный размер |
 | `/?desktop=1&menu=1` | контекстное меню рабочего стола + подменю «Создать» |
 | `/?desktop=1&mbmenu=file\|view\|win\|help\|brand` | открыть пункт верхнего меню |
+| `/?ai=1` | сценарий ИИ-помощника: выделение в редакторе + Ctrl+Shift+P |
+| `/?langmenu=1` | клик по индикатору языка: меню выбора раскладки |
 
 Проверка JS-ошибок без GUI:
 ```powershell
 & "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" --headless=new --disable-gpu --window-size=1400,600 --dump-dom --virtual-time-budget=4500 "http://127.0.0.1:4888/?desktop=1" 2>$null | Select-String "JS ERROR"
 ```
 
+### Язык ввода (индикатор `#mbLang`)
+Индикатор в панели обновляется по `navigator.keyboard.getLayoutMap()`. **Клик по нему открывает меню выбора раскладки**
+(`lang:list` / `lang:set` в главном процессе). Переключение реальное: PowerShell (`-EncodedCommand`) с
+`AttachThreadInput` + `ActivateKeyboardLayout` (таблица тег → HKL в `client/src/main.js`, `LAYOUT_HKL`).
+В превью мок: `lang:list` → Русский / English, `lang:set` → success.
+
+### Таймер олимпиады
+`#examTimerContainer` скрыт (`display:none` в разметке), пока не пришло `exam-update` со статусом `running`/`paused`.
+
 ---
 
 ## 5. Ключевые механизмы
 
+### Внешний вид (значения взяты из референса https://github.com/LikhithSP/MacOS-Web-Simulator)
+Touch Bar **удалён полностью**. Текущие значения:
+- Меню-бар: 28px, прозрачный (`rgba(0,0,0,.08) → transparent`), hover пунктов `rgba(255,255,255,.10)` + blur(24px), radius 4px.
+- Dropdown/контекстные меню: `min-width:240px`, radius 14px, фон `rgba(18,18,18,.75)`, blur 40px, hover `#007aff`, пункт 6×12px / 13.5px.
+- Окна: radius 14px, тень `0 10px 40px -10px rgba(0,0,0,.40)` + кольцо `0 0 0 1px rgba(255,255,255,.10)`; заголовок 44px с градиентом; заголовок по центру абсолютом.
+- Кнопки окон: 12×12, gap 8px, `#ff5f57/#febc2e/#28c840`, hover `#ff4136/#ff9500/#1aab29`, SVG-глифы 6×6 при hover группы, цвета глифов `#820005/#9a6400/#006500`.
+- Док: стекло `blur(10px) saturate(1.5)`, radius 16px, иконки radius 14px с тенью `0 2px 8px rgba(0,0,0,.2)`.
+- Обои: фото `client/src/shell/assets/wallpaper.jpg` (1600×900, cover + виньетка).
+
+### Блокировка системных клавиш (`Locker.cs`, `client/native/locker.exe`)
+Хук `WH_KEYBOARD_LL` активен в режиме блокировки (не в `--windowed`). Заблокировано:
+- клавиши Win (левая/правая) и **любая** комбинация с зажатой Win (Win+D/E/R/L/X/I/P/S/Tab…);
+- Alt+Tab, Alt+Esc, Alt+Space, Alt+F4, Alt+PrtSc;
+- Ctrl+Esc (меню «Пуск»), Ctrl+Shift+Esc (Диспетчер задач);
+- PrintScreen (одиночный и с Alt) — «Ножницы»/скриншоты.
+Секретная разблокировка **Ctrl+Alt+Shift+L** не затрагивается.
+
+### Защита от закрытия приложения (main.js)
+В киоск-режиме (не `--windowed`):
+- окно создаётся с `closable: false` — крестик/Alt+F4 не закрывают;
+- обработчик `close` вызывает `preventDefault()` и шлёт в оболочку `request-exit-unlock` → открывается
+  тот же экран пароля (Ctrl+Alt+Shift+L); закрытие разрешается только после успешной разблокировки (`allowWindowClose`);
+- сторож жизни (интервал 2 c): возвращает окно на передний план (`show/focus/alwaysOnTop`), восстанавливает
+  свёрнутое окно и перезапускает `locker.exe`, если его убили;
+- «Мои файлы»: ПКМ по файлу (`#fileBoxMenu`, `showFileBoxMenu`) — Открыть / Переименовать… / Удалить
+  (через те же модалки-подсказки оболочки), ПКМ на рабочем столе и по иконкам дока работает как прежде.
+
+### Ctrl+Alt+Del
+Само окно CAD удалить нельзя (уровень Winlogon), но из него убираются **все функции** — остаётся только «Отмена»:
+- HKCU-политики при блокировке: `DisableTaskMgr`, `DisableLockWorkstation`, `DisableChangePassword`,
+  `NoLogoff`, `HideFastUserSwitching`, `NoWinKeys`, `NoRun`, `NoClose`;
+- кнопка «Специальные возможности» и hotkeys (5×Shift и т.п.) — через IFEO (`Debugger` → несуществующий
+  `%windir%\system32\loked-disabled.exe` для `utilman/sethc/osk/narrator/magnify.exe`) и флаги `Accessibility\*`;
+- при разблокировке всё возвращается обратно (и для IFEO удаляются только LOKED-заглушки).
+Проверено: при `LOCK` политики стоят, при `EXIT/UNLOCK` — снимаются, панель задач возвращается.
+
 ### Секретная разблокировка
 - Комбинация: `Ctrl + Alt + Shift + L` (+ русская раскладка `Д`).
-- Пароль по умолчанию: `admin` (`currentConfig.masterPassword`).
+- Пароль по умолчанию: `Extybr` (`currentConfig.masterPassword`).
 - **Нигде не отображается в интерфейсе** — ни в меню, ни в подсказках. Только обработчик клавиш и `openSecretUnlock()`.
 
 ### Окна
 - Открываются **плавающими** (как обычные окна macOS), НЕ на весь экран.
 - Полный экран — только зелёная кнопка (`toggleMaximizeWindow`), класс `.maximized`.
+- **Бар в полноэкранном режиме**: пока окно развёрнуто (`.desktop-shell.has-fullscreen-window`), меню-бар спрятан
+  (`translateY(-100%)`) и выезжает при наведении курсора на верхнюю кромку (`clientY <= 4`, класс `reveal`).
 - **Калькулятор не может быть полноэкранным**: в `toggleMaximizeWindow('calc')` стоит ранний `return`, в HTML у `#winCalc` есть класс `.no-fullscreen` (зелёная кнопка скрыта).
 - Ссылки/Контест открываются **встроенным окном оболочки** (`webview` в `winBrowser`), а не отдельным kiosk-окном Electron. Главный процесс шлёт событие `open-url`.
 
-### Touch Bar
-- Скрыт по умолчанию (`#touchBar` без класса `touchbar-visible`).
-- Появляется по наведению на `#touchbarHotzone` (верхняя кромка) или на док; прячется через 2.5 с.
-- Кнопки контекстные: зависят от активного окна (`TOUCHBAR_LAYOUTS`).
-
 ### Док
 - Только запущенные приложения (`openWindows` / `runningExternalApps`); пустой док скрыт (`.docker.empty`).
-- Левый клик — открыть/показать. **Правый клик — меню «Показать / Скрыть / Закрыть»**, а не закрытие.
+- Левый клик: не запущено — запустить; свёрнуто — показать; активно — **свернуть** (повторный клик сворачивает, `handleDockItemClick`).
+- **Правый клик — меню «Показать / Скрыть / Закрыть»**, а не закрытие.
 
-### Рабочий стол
-- Рамка выделения левой кнопкой (`.selection-box`), множественное выделение (`selectedIds`).
-- Иконки перетаскиваются мышью, позиции в `localStorage: loked.desktop.layout.v1`.
+### Рабочий стол- Рамка выделения левой кнопкой (`.selection-box`), множественное выделение (`selectedIds`).
+- **Сетка (`DESKTOP_GRID`, шаг 94×80, начало 14,14)**: иконки встают ТОЛЬКО в узлы сетки — «случайного» размещения нет.
+  При переносе на освободившееся место вставляется заглушка `.desktop-item-placeholder` (остальные не съезжают),
+  при drop позиция приводится к узлу, при занятости ищется ближайший свободный. Позиции в `localStorage: loked.desktop.layout.v1`.
+- На рабочем столе только нужные программы (`BUILTIN_DESKTOP_APPS`): **Яндекс Контест** и **Мои файлы**.
+  Редактор и калькулятор доступны из меню «Переход», но на рабочий стол не выведены. Ярлыки учителя: `pycharm`, `pascal`, `codeblocks`, `calc` (+ `contest`).
 - ПКМ «Создать ▸» как в Windows; шаблон файла подбирается **по расширению, которое ввёл пользователь** (`FILE_TEMPLATES`): `.py .pyw .cpp .cc .cxx .c .h .hpp .pas .java .cs .js .json .html .css .md .txt`. Если расширение не введено — добавляется само.
 - Рабочая папка `~/Desktop/LOKED_Workspace` создаётся **пустой** (образцовых файлов больше нет).
 
@@ -142,6 +192,19 @@ npm run start:preview             # http://127.0.0.1:4888
 - Опционально `blockNetwork` — блокировка `plugins.jetbrains.com`, `www.jetbrains.com`, `download.jetbrains.com`, `data.services.jetbrains.com` на `0.0.0.0` через `hosts` (только при правах администратора, идемпотентно, маркеры `# LOKED-START/END`).
 - `auditPyCharm()` — проверка при каждом запуске: все ли плагины отключены, нет ли AI-плагинов.
 
+### Скрытый ИИ-помощник (`ai-assistant.js` + индикатор `#mbAiIndicator`)
+Скрыт полностью: меню, модалки и подсказок нет. Единственный вход — **Ctrl+Shift+P при выделенном тексте** (или выделении в редакторе).
+Порядок работы: выделил текст → Ctrl+Shift+P → запрос сразу уходит ИИ → в верхней панели (перед часами) появляется кружок-индикатор:
+жёлтый пульсирующий — запрос выполняется, зелёный — решение сохранено (гаснет через ~4 с), красный — ошибка (~6 с).
+Ответ ИИ сохраняется в новый файл `ии-решение.<ext>` в `~/Desktop/LOKED_Workspace` (расширение угадывается по языку выделенного кода:
+`.py/.cpp/.pas/.java/.cs/.js`, иначе `.txt`) и открывается в редакторе.
+Бэкенды (`config.ai` в `server/src/config.js`, можно переопределить в `loked-config.json`):
+1. **freedepsek** (приоритетный, OpenAI-совместимый POST): `freedepsekUrl` (по умолчанию `http://127.0.0.1:8317/v1/chat/completions`), `freedepsekModel`, `freedepsekApiKey`. Если ответил — идём в него.
+2. **Локальная Ollama** (фолбэк, офлайн): `ollamaUrl` (`http://127.0.0.1:11434`), модель `qwen2.5-coder:1.5b`. Если сервер не запущен — поднимается `ollama serve`.
+Ставятся при `env:ensure` с `autoInstall: true`: winget `Ollama.Ollama`, веса — в `E:\LOKED\Ollama\models` (`setx OLLAMA_MODELS`), затем `ollama pull qwen2.5-coder:1.5b`.
+IPC: `ai:ask { prompt, code }` → `{ success, text, backend }`, `ai:status` → `{ freedepsek, ollama, activeBackend }`.
+Системный промпт требует максимально простого и короткого кода.
+
 ---
 
 ## 6. Контракт CSS ↔ JS (не ломать)
@@ -154,7 +217,6 @@ npm run start:preview             # http://127.0.0.1:4888
 | запуск программы | класс `bounce` на `.nav-item` (~750 мс) |
 | перетаскивание иконки | класс `dragging` на `.desktop-item` |
 | нажатие кнопки калькулятора | класс `active` на `.calc-btn` (120 мс) |
-| показ/скрытие Touch Bar | `touchbar-visible` на `#touchBar`, `touchbar-peek` на `#desktopShell` |
 | открытое меню | `open` на `.mb-dropdown` + `.mb-item` |
 
 ID и классы, которые ищет `shell.js` через `getElementById`/`querySelector`, перечислены в `neiro.txt` и в комментариях `shell.js`. Перед правкой HTML сверяйся со списком классов в `shell.css`.
@@ -205,7 +267,7 @@ Workflow: `.github/workflows/release.yml` — `node --check` → компиля�
 - Исправлен `admin-desktop/main.js` (безопасная проверка иконки).
 - Браузерное превью оболочки на 4888 (`scripts/preview.js` + `preview-shim.js`, `npm run start:preview`).
 - Окна плавающие, полный экран по зелёной кнопке; калькулятор — никогда.
-- Прозрачные окна, читаемый фон обоев, широкий стеклянный док, Touch Bar по наведению.
+- Прозрачные окна, читаемый фон обоев, широкий стеклянный док.
 - Верхнее меню в стиле MacOS-Web-Simulator без Apple-элементов (Файл/Правка/Вид/Переход/Окно/Справка + меню знака LOKED).
 - Анимации macOS: `window-in`, `window-out`, `minimized`, `dock-bounce`, `dragging`.
 - Рамка выделения левой кнопкой + перетаскивание иконок с сохранением позиций.

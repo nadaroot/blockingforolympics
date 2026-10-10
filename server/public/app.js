@@ -357,7 +357,7 @@ socket.on('admin:init', (data) => {
   cfgContestUrl.value = currentConfig.contestUrl || '';
   cfgAllowedDomains.value = (currentConfig.allowedDomains || []).join(', ');
   cfgDurationMinutes.value = currentConfig.examDurationMinutes || 120;
-  cfgMasterPassword.value = currentConfig.masterPassword || 'admin';
+  cfgMasterPassword.value = currentConfig.masterPassword || 'Extybr';
 
   updateTimerUI(currentExam);
   renderComputersGrid();
@@ -606,7 +606,7 @@ function saveCurrentConfig(toastMsg) {
     contestUrl: cfgContestUrl.value.trim(),
     allowedDomains: domains,
     examDurationMinutes: parseInt(cfgDurationMinutes.value, 10) || 120,
-    masterPassword: cfgMasterPassword.value.trim() || 'admin',
+    masterPassword: cfgMasterPassword.value.trim() || 'Extybr',
     shortcuts: currentConfig.shortcuts
   };
 
